@@ -3,7 +3,6 @@ include std/error.e
 include std/io.e as io
 include std/pipeio.e as pipe
 include std/get.e as get
-include std/net/http.e as http
 include std/dll.e
 include std/filesys.e
 include std/search.e
@@ -11,18 +10,20 @@ include std/search.e
 constant cmd = command_line()
 constant info = pathinfo(cmd[2])
 object   void = 0 
-sequence InitialDir 
 procedure my_close(integer fh)
-	if fh > 3 then
-		close(fh)
-	end if
+    if fh > io:STDERR then
+    	printf(io:STDERR, "Closing file %d\n", {fh})
+    	crash("premature file closing")
+        close(fh)
+    end if
 end procedure
 
-integer  f_debug = open(info[PATH_BASENAME]&".log", "w")
+atom  f_debug = open(info[PATH_BASENAME]&".log", "w")
 if f_debug =-1 then
-	f_debug = io:STDERR
+	f_debug = open("/dev/null", "w")
+  	logMsg("Unable to create log file.")
 else
-	f_debug = delete_routine(f_debug, routine_id("my_close"))
+    f_debug = delete_routine(f_debug, routine_id("my_close"))
 end if
 ------------------------------------------------------------------------------ 
  
@@ -79,65 +80,91 @@ procedure installIfNot(sequence package)
     sequence s = execCommand("apt-get install -y " & package) 
     logMsg(s) 
   end if 
-end procedure 
+end procedure
+
+function include_lines(sequence file_name, sequence lines_to_include)
+	sequence file_data = read_file(file_name)
+	integer i = 1 while i <= length(lines_to_include) do
+		if match(lines_to_include,file_data) != 0 then
+			lines_to_include = remove(lines_to_include, i)
+		else
+			i += 1
+		end if
+	end while
+	return append_lines(file_name, lines_to_include)
+end function
+
 ------------------------------------------------------------------------------ 
   constant archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
-  constant net_archive_name = sprintf(archive_format, {sizeof(C_POINTER)*8})
-  create_directory("AIO-tmp")
-  constant local_archive_name = "AIO-tmp" & SLASH & filesys:filename(net_archive_name)
-  if not file_exists(local_archive_name) then
-  	logMsg( "Missing archive...downloading" )
-	object archive_data = http_get( net_archive_name )
-	--object archive_data = read_file("/tmp/" & filesys:filename(net_archive_name))
-	if atom(archive_data) then
-		logMsg( "Unable to download.  No Internet?")
-		
-		abort(1)
-	end if
-	write_file(local_archive_name, archive_data[2])
+  sequence archive_exists = {}
+  sequence local_archive_name
+  for k = 32 to 64 by 32 do
+	 sequence net_archive_name = sprintf(filesys:filename(archive_format), {k})
+	 archive_exists = append(archive_exists, file_exists(net_archive_name))
+	 if archive_exists[$] then
+	 	local_archive_name = filesys:filename(net_archive_name)
+	 end if
+  end for
+  if find(1, archive_exists) = 0 then
+  	logMsg(sprintf("Please download either \""& archive_format & "\" or \"" & archive_format & "\" to this directory and run again.",  {32, 64})) 
+	abort(1)
   end if
-  execCommand("tar xzf " & local_archive_name )
-  delete_file("install_AIO")
-  --delete_file("readme.txt")
-  delete_file("dependencies.txt")
-  delete_file("eu41.tgz")
-  -- write_file("readme.txt", match_replace("install_AIO",read_file("readme.txt"),"net_install"))
-  sequence targetDirectory = "/usr/local/euphoria-4.1.0" 
+  execCommand("tar xzf " & local_archive_name & " eu41.tgz" )
+  sequence targetDirectory = "/usr/local/euphoria-4.1.0"
   if length(cmd) < 3 then
     logMsg( "Usage: install_AIO [<target directory>]")
-    logMsg( "Using default target directory: /usr/local/euphoria-4.1.0") 
+    logMsg( "Using default target directory: /usr/local/euphoria-4.1.0")
   else 
     targetDirectory = cmd[3]
   end if
+  
+  sequence InitialDir = current_dir()
   void = chdir(info[PATH_DIR])
-  InitialDir = current_dir()
-  f_debug = open(InitialDir&SLASH&info[PATH_BASENAME]&".log", "w") 
   crash_file(InitialDir&SLASH&info[PATH_BASENAME]&".err")
  
   -- verify user is root 
-  sequence s = execCommand("id -u")
+  object s = execCommand("id -u")
+  if atom(s) then
+  	logMsg("id -u command failed.")
+  	abort(1)
+  end if
   s = get:value(s)
   if s[1] != GET_SUCCESS or s[2] != 0 then 
-    logMsg("User was not root.")   
-    abort(1)
+    logMsg("User was not root.")
+--    abort(1)
   end if
  
   -- install dependencies 
-  s = read_lines(InitialDir&SLASH&"dependencies.txt") 
+  s = read_lines(InitialDir&SLASH&"dependencies.txt")
+  if atom(s) then
+  	logMsg("dependencies.txt not readable.")
+  	abort(1)
+  end if
   for i = 1 to length(s) do
     installIfNot(s[i])
   end for
- 
+
+  if file_exists(targetDirectory) then
+  	logMsg(sprintf("Something already exists at \'%s\'.\nOpen Euphoria not (re)installed.", {targetDirectory}))
+	abort(1)  	
+  end if
+
   -- install OpenEuphoria 4.1 
-  if not create_directory(targetDirectory) then
+  if not create_directory(targetDirectory, 0t755) then
   	logMsg(sprintf("Cannot create directory \'%s\'", targetDirectory))  	
   	abort(1)
   end if
-  s = execCommand("tar -xvf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory) 
+  s = execCommand("tar -xvf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory)
+  if atom(s) then
+  	logMsg("unable to run tar")
+  	abort(1)
+  end if
   logMsg(s)
  
+  
+  
   -- update environment variables 
-  if append_lines("/etc/bash.bashrc", { 
+  if include_lines("/etc/bash.bashrc", { 
     "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:"&targetDirectory&"/bin",  
     "export EUDIR="&targetDirectory,
     "export EUINC="&targetDirectory&"/include/" 
@@ -148,4 +175,8 @@ end procedure
  
   -- apply environment variables 
   s = execCommand(". "&SLASH&"/etc/bash.bashrc")
+  if atom(s) then
+  	logMsg("unable to apply environment variables.")
+  	abort(1)
+  end if
   logMsg(s)
