@@ -22,6 +22,10 @@ atom  f_debug = open(info[PATH_BASENAME]&".log", "w")
 if f_debug =-1 then
 	f_debug = open("/dev/null", "w")
   	logMsg("Unable to create log file.")
+  	if f_debug = -1 then
+  		logMsg("Installer is for Linux systems only.")
+  		abort(1)
+  	end if
 else
     f_debug = delete_routine(f_debug, routine_id("my_close"))
 end if
