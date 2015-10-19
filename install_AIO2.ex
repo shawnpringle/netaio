@@ -7,8 +7,26 @@ include std/dll.e
 include std/filesys.e
 include std/search.e
 
+enum true
+
+
+constant eucfgf = 
+"""[all]
+-d E%d
+-eudir %s
+-i %s/include
+[translate]
+-gcc 
+-con 
+-com %s
+-lib-pic %s/bin/euso.a
+-lib %s/bin/eu.a
+[bind]
+-eub %s/bin/eub
+"""
 constant cmd = command_line()
 constant info = pathinfo(cmd[2])
+integer register_size -- length of standard registers on this computer in bits
 object   void = 0 
 procedure my_close(integer fh)
     if fh > io:STDERR then
@@ -106,10 +124,11 @@ end function
 	 sequence net_archive_name = sprintf(filesys:filename(archive_format), {k})
 	 archive_exists = append(archive_exists, file_exists(net_archive_name))
 	 if archive_exists[$] then
+	 	register_size = k
 	 	local_archive_name = filesys:filename(net_archive_name)
 	 end if
   end for
-  if find(1, archive_exists) = 0 then
+  if find(true, archive_exists) = 0 then
   	logMsg(sprintf("Please download either \""& archive_format & "\" or \"" & archive_format & "\" to this directory and run again.",  {32, 64})) 
 	abort(1)
   end if
@@ -119,7 +138,7 @@ end function
     logMsg( "Usage: install_AIO [<target directory>]")
     logMsg( "Using default target directory: /usr/local/euphoria-4.1.0")
   else 
-    targetDirectory = cmd[3]
+    targetDirectory =  canonical_path(cmd[3])
   end if
   
   sequence InitialDir = current_dir()
@@ -164,8 +183,13 @@ end function
   	abort(1)
   end if
   logMsg(s)
- 
-  
+  atom fcfg = open(targetDirectory&SLASH&"bin"&SLASH&"eu.cfg", "w", 0t644)
+  if fcfg = -1 then
+  	logMsg("configuration file cannot be created.")
+  	abort(1)
+  end if
+  fcfg = delete_routine(fcfg, routine_id("my_close"))
+  printf(fcfg, eucfgf, register_size & repeat(targetDirectory,6))
   
   -- update environment variables 
   if include_lines("/etc/bash.bashrc", { 
