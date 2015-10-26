@@ -6,9 +6,12 @@ include std/get.e as get
 include std/dll.e
 include std/filesys.e
 include std/search.e
+include std/console.e
+
+
 
 enum true
-
+constant prefix = "/usr/local"
 
 constant eucfgf = 
 """[all]
@@ -49,12 +52,17 @@ else
 end if
 ------------------------------------------------------------------------------ 
  
-public procedure logMsg(sequence msg) 
+public procedure logMsg(sequence msg, sequence args = {}) 
   puts(f_debug, msg & "\n") 
   flush(f_debug) 
   puts(1, msg & "\n") 
 end procedure 
- 
+
+procedure die(sequence msg, sequence args)
+	logMsg(sprintf(msg, args))
+	abort(1)
+end procedure
+
 ------------------------------------------------------------------------------ 
  
 public function execCommand(sequence cmd) 
@@ -117,94 +125,150 @@ function include_lines(sequence file_name, sequence lines_to_include)
 end function
 
 ------------------------------------------------------------------------------ 
-  constant archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
-  sequence archive_exists = {}
-  sequence local_archive_name
-  for k = 32 to 64 by 32 do
-	 sequence net_archive_name = sprintf(filesys:filename(archive_format), {k})
-	 archive_exists = append(archive_exists, file_exists(net_archive_name))
-	 if archive_exists[$] then
-	 	register_size = k
-	 	local_archive_name = filesys:filename(net_archive_name)
-	 end if
-  end for
-  if find(true, archive_exists) = 0 then
-  	logMsg(sprintf("Please download either \""& archive_format & "\" or \"" & archive_format & "\" to this directory and run again.",  {32, 64})) 
-	abort(1)
-  end if
-  execCommand("tar xzf " & local_archive_name & " eu41.tgz" )
-  sequence targetDirectory = "/usr/local/euphoria-4.1.0"
-  if length(cmd) < 3 then
-    logMsg( "Usage: install_AIO [<target directory>]")
-    logMsg( "Using default target directory: /usr/local/euphoria-4.1.0")
-  else 
-    targetDirectory =  canonical_path(cmd[3])
-  end if
-  
-  sequence InitialDir = current_dir()
-  void = chdir(info[PATH_DIR])
-  crash_file(InitialDir&SLASH&info[PATH_BASENAME]&".err")
- 
-  -- verify user is root 
-  object s = execCommand("id -u")
-  if atom(s) then
-  	logMsg("id -u command failed.")
-  	abort(1)
-  end if
-  s = get:value(s)
-  if s[1] != GET_SUCCESS or s[2] != 0 then 
-    logMsg("User was not root.")
+constant archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
+register_size = 0
+sequence archive_exists = {}
+sequence local_archive_name
+
+for k = 32 to 64 by 32 do
+	sequence net_archive_name = sprintf(filesys:filename(archive_format), {k})
+	archive_exists = append(archive_exists, file_exists(net_archive_name))
+	if archive_exists[$] then
+		register_size = k
+		local_archive_name = filesys:filename(net_archive_name)
+	end if
+end for
+if not find(true, archive_exists) then
+	while find(register_size,{32,64})=0 with entry do
+	  display("Enter 32 or 64.")
+	entry
+	  register_size = floor(prompt_number("Enter the number of bits of your computer's processor:", {32,64}))
+	end while
+	system(sprintf("wget " & archive_format, {register_size}),2) 
+end if
+execCommand("tar xzf " & local_archive_name & " eu41.tgz" )
+sequence targetBaseDirectory = prefix & "/share"
+sequence targetDirectory = targetBaseDirectory & "/euphoria-4.1.0"
+sequence InitialDir = current_dir()
+void = chdir(info[PATH_DIR])
+crash_file(InitialDir&SLASH&info[PATH_BASENAME]&".err")
+
+-- verify user is root 
+object s = execCommand("id -u")
+if atom(s) then
+logMsg("id -u command failed.")
+abort(1)
+end if
+s = get:value(s)
+if s[1] != GET_SUCCESS or s[2] != 0 then 
+logMsg("User was not root.")
 --    abort(1)
-  end if
- 
-  -- install dependencies 
-  s = read_lines(InitialDir&SLASH&"dependencies.txt")
-  if atom(s) then
-  	logMsg("dependencies.txt not readable.")
-  	abort(1)
-  end if
-  for i = 1 to length(s) do
-    installIfNot(s[i])
-  end for
+end if
 
-  if file_exists(targetDirectory) then
-  	logMsg(sprintf("Something already exists at \'%s\'.\nOpen Euphoria not (re)installed.", {targetDirectory}))
-	abort(1)  	
-  end if
+-- install dependencies 
+s = read_lines(InitialDir&SLASH&"dependencies.txt")
+if atom(s) then
+	logMsg("dependencies.txt not readable.")
+	abort(1)
+end if
+for i = 1 to length(s) do
+	installIfNot(s[i])
+end for
 
-  -- install OpenEuphoria 4.1 
-  if not create_directory(targetDirectory, 0t755) then
-  	logMsg(sprintf("Cannot create directory \'%s\'", targetDirectory))  	
-  	abort(1)
-  end if
-  s = execCommand("tar -xvf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory)
-  if atom(s) then
-  	logMsg("unable to run tar")
-  	abort(1)
-  end if
-  logMsg(s)
-  atom fcfg = open(targetDirectory&SLASH&"bin"&SLASH&"eu.cfg", "w", 0t644)
-  if fcfg = -1 then
-  	logMsg("configuration file cannot be created.")
-  	abort(1)
-  end if
-  fcfg = delete_routine(fcfg, routine_id("my_close"))
-  printf(fcfg, eucfgf, register_size & repeat(targetDirectory,6))
-  
-  -- update environment variables 
-  if include_lines("/etc/bash.bashrc", { 
-    "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:"&targetDirectory&"/bin",  
-    "export EUDIR="&targetDirectory,
-    "export EUINC="&targetDirectory&"/include/" 
-  }) = -1 then
-    logMsg("Failed to append lines to /etc/bash.bashrc") 
-    abort(1)
-  end if
- 
-  -- apply environment variables 
-  s = execCommand(". "&SLASH&"/etc/bash.bashrc")
-  if atom(s) then
-  	logMsg("unable to apply environment variables.")
-  	abort(1)
-  end if
-  logMsg(s)
+atom fcfg
+integer fb
+if file_exists(targetDirectory) then
+	logMsg(sprintf("Something already exists at \'%s\'.\nOpen Euphoria not (re)installed.", {targetDirectory}))
+else
+	-- install OpenEuphoria 4.1 
+	if not create_directory(targetDirectory, 0t755) then
+		logMsg(sprintf("Cannot create directory \'%s\'", targetDirectory))  	
+		abort(1)
+	end if
+	s = execCommand("tar -xvf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory)
+	if atom(s) then
+		logMsg("unable to run tar")
+		abort(1)
+	end if
+	logMsg(s)
+	fcfg = open(targetDirectory&SLASH&"bin"&SLASH&"eu.cfg", "w", 0t644)
+	if fcfg = -1 then
+		logMsg("configuration file cannot be created.")
+		abort(1)
+	end if
+	fcfg = delete_routine(fcfg, routine_id("my_close"))
+	printf(fcfg, eucfgf, register_size & repeat(targetDirectory,6))
+end if
+
+
+fb = open(prefix & "/bin/eui41feb", "w", 0t755)
+if fb = -1 then
+    die("Cannot create euc41feb",{})
+end if
+puts(fb,
+	"#!/bin/sh\n"&
+	targetBaseDirectory & "/euphoria-4.1.0/bin/euc $@\n"
+	)
+
+
+fb = open(prefix & "/bin/euc41feb", "w", 0t755)
+if fb = -1 then
+    die("Cannot create euc41feb",{})
+end if
+puts(fb,
+	"#!/bin/sh\n"&
+	targetBaseDirectory & "/euphoria-4.1.0/bin/euc $@\n"
+	)
+
+
+fb = open(prefix & "/bin/eui40tip", "w", 0t755)
+if fb = -1 then
+	die("Cannot create eui40tip",{})
+end if
+puts(fb,
+	"#!/bin/sh\n"&
+	targetBaseDirectory & "/euphoria-4.0-tip/bin/eui $@\n"
+	)
+
+
+fb = open(prefix & "/bin/euc40tip", "w", 0t755)
+if fb = -1 then
+    die("Cannot create euc40tip",{})
+end if
+puts(fb,
+	"#!/bin/sh\n"&
+	targetBaseDirectory & "/euphoria-4.0-tip/bin/euc $@\n"
+	)
+
+
+
+targetDirectory = targetBaseDirectory & "/euphoria-721157c2f5ef"
+-- install OpenEuphoria 4.0
+if not create_directory(targetDirectory, 0t755) then
+	logMsg(sprintf("Cannot create directory \'%s\'", targetDirectory))
+	abort(1)
+end if
+s = execCommand("tar -xf " & InitialDir&SLASH&"euphoria-721157c2f5ef.tar -C " & targetDirectory)
+if atom(s) then
+	logMsg("unable to run tar")
+	abort(1)
+end if
+logMsg(s)
+
+fcfg = open(targetDirectory&SLASH&"bin/eu.cfg", "w", 0t644)
+if fcfg = -1 then
+	logMsg("configuration file cannot be created.")
+	abort(1)
+end if
+fcfg = delete_routine(fcfg, routine_id("my_close"))
+printf(fcfg, eucfgf, register_size & repeat(targetDirectory,6))
+
+if file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
+	delete_file(targetBaseDirectory & SLASH & "euphoria-4.0-tip")
+end if
+s = execCommand("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip")
+if atom(s) then
+	logMsg("Cannot produce symlink")
+	abort(1)
+end if
+logMsg(s)
