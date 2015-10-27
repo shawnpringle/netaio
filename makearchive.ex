@@ -206,9 +206,6 @@ function bobslash(sequence s)
 	return s
 end function
 
-
-
--- local_dir = $HOME/install-tip/usr/local
 constant euphoria_versioned_directory = sprintf("share/euphoria-%s", {euphoria_revision})                       
 constant euphoria_directory           = "share/euphoria"
 create_directory(install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory,0t755,true)
@@ -219,11 +216,10 @@ delete_file(install_root & SLASH & install_prefix & SLASH & euphoria_directory)
 
 constant bin_dir = euphoria_versioned_directory & "/bin"
 install_create_directory(bin_dir, 0t755, true)
-sequence eubins = { "eui", "euc", "eub", "eushroud", "eubind", "eu.a" , "eudbg.a" }
+sequence eubins = { "eui", "euc", "eub", "eu.a" , "eudbg.a" }
 
 for eubini = 1 to length(eubins) do
 	sequence eubin = eubins[eubini]
-	 
 	install_copy( source_directory & "/source/build/" & eubin, bin_dir, iff(ends(".a", eubin),0t644,0t755) )
 	delete_file( install_root & SLASH & install_prefix & SLASH & "bin" & SLASH & eubin )
 	delete_file( install_root & SLASH & install_prefix & SLASH & "lib" & SLASH & eubin )
