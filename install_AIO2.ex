@@ -166,12 +166,12 @@ for cmdi = 3 to length(cmd) do
 			switch opt do
 				case 'n' then
 					dry_run = true
-					if find(prefix, {"/usr/local", "/usr", "/opt"}) then
-						prefix = "/tmp/test-install"
-						remove_directory(prefix, true)
-						create_directory(prefix, 0t755, false)
+					prefix = "/tmp/test-install"
+					if file_exists(prefix) and not remove_directory(prefix, true) then
+						die("Cannot remove %s", {prefix})
 					end if
-				case '8','4' then
+					create_directory(prefix, 0t755, false)
+					case '8','4' then
 					register_size = (opt-'0')*8
 				case else
 					die("Invalid option -%s", {opt})
@@ -185,6 +185,19 @@ end for
 sequence archive_exists = {}
 sequence local_archive_name
 sequence net_archive_name
+
+-- verify user is root 
+object s = execCommand("id -u")
+if atom(s) then
+	logMsg("id -u command failed.")
+	abort(1)
+end if
+s = get:value(s)
+if s[1] != GET_SUCCESS or s[2] != 0 and not dry_run then 
+	logMsg("User was not root.")
+    abort(1)
+end if
+
 if register_size = 0 then
 	for k = 32 to 64 by 32 do
 		net_archive_name = sprintf(filesys:filename(archive_format), {k})
@@ -203,6 +216,12 @@ if not find(true, archive_exists) then
 		end while
 	end if
 	net_archive_name = sprintf(filesys:filename(archive_format), {register_size})
+	-- installed by default on Mint.  Is this needed here?
+	if dry_run and not isInstalled("wget") then
+		die("Need wget installed.",{})
+	else
+		installIfNot("wget")
+	end if
 	system("wget " & net_archive_name,2)
 else
 	net_archive_name = sprintf(filesys:filename(archive_format), {register_size})
@@ -214,18 +233,6 @@ sequence targetDirectory = targetBaseDirectory & "/euphoria-4.1.0"
 sequence InitialDir = current_dir()
 void = chdir(info[PATH_DIR])
 crash_file(InitialDir&SLASH&info[PATH_BASENAME]&".err")
-
--- verify user is root 
-object s = execCommand("id -u")
-if atom(s) then
-	logMsg("id -u command failed.")
-	abort(1)
-end if
-s = get:value(s)
-if s[1] != GET_SUCCESS or s[2] != 0 and not dry_run then 
-	logMsg("User was not root.")
-    abort(1)
-end if
 
 -- install dependencies 
 s = read_lines(InitialDir&SLASH&"dependencies.txt")
@@ -241,6 +248,13 @@ for i = 1 to length(s) do
 	end if
 end for
 
+-- intall wxeu binary wrapper
+create_directory(prefix & "/lib", 0t755)
+copy_file(sprintf("bin%d/libwxeu.so.16", {register_size}), prefix & "/lib/libwxeu.so.16")
+s = execCommand("ldconfig " & prefix & "/lib")
+if atom(s) then
+	logMsg("Could not execute ldconfig.")
+end if
 atom fcfg
 integer fb
 if file_exists(targetDirectory) then
@@ -361,3 +375,14 @@ system("chmod 755 /" & prefix & "/bin/eu[ic]41feb",2)
 logMsg("Setting default Euphoria to Euphoria 4.1 Feb, 2015...")
 s = execCommand("ln -s " & prefix & "/bin/eui41feb " & prefix & "/bin/eui")
 s = execCommand("ln -s " & prefix & "/bin/euc41feb " & prefix & "/bin/euc")
+sequence eubins = {"creole", "eubind", "eudis", "eudist", "eudoc", "euloc", "eushroud", "eutest"}
+for i = 1 to length(eubins) do
+	sequence eubin = eubins[i]
+	s = execCommand("ln -s " & targetBaseDirectory & "/euphoria-4.1.0/bin/" & eubin & " " & prefix & "/bin/" & eubin)
+end for
+
+logMsg("Copying libraries and binaries...")
+s = execCommand(sprintf("cp bin%d/wxide.bin %s/bin", repeat(register_size,1) & {prefix}))
+s = execCommand(sprintf("cp bin%d/*.so* %s/lib", {register_size, prefix}))
+s = execCommand(sprintf("chmod +x %s/lib/*.*", {prefix}))
+
