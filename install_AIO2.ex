@@ -13,7 +13,20 @@ include std/console.e
 enum true
 constant prefix = "/usr/local"
 
-constant eucfgf = 
+constant eucfgf =
+{
+"""[all]
+-d E%d
+-eudir %s
+-i %s/include
+[translate]
+-gcc 
+-con 
+-com %s
+-lib %s/bin/eu.a
+[bind]
+-eub %s/bin/eub
+""",
 """[all]
 -d E%d
 -eudir %s
@@ -27,6 +40,7 @@ constant eucfgf =
 [bind]
 -eub %s/bin/eub
 """
+}
 constant cmd = command_line()
 constant info = pathinfo(cmd[2])
 integer register_size -- length of standard registers on this computer in bits
@@ -34,7 +48,6 @@ object   void = 0
 procedure my_close(integer fh)
     if fh > io:STDERR then
     	printf(io:STDERR, "Closing file %d\n", {fh})
-    	crash("premature file closing")
         close(fh)
     end if
 end procedure
@@ -182,7 +195,7 @@ if file_exists(targetDirectory) then
 else
 	-- install OpenEuphoria 4.1 
 	if not create_directory(targetDirectory, 0t755) then
-		logMsg(sprintf("Cannot create directory \'%s\'", targetDirectory))  	
+		logMsg(sprintf("Cannot create directory \'%s\'", {targetDirectory}))  	
 		abort(1)
 	end if
 	s = execCommand("tar -xvf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory)
@@ -197,7 +210,7 @@ else
 		abort(1)
 	end if
 	fcfg = delete_routine(fcfg, routine_id("my_close"))
-	printf(fcfg, eucfgf, register_size & repeat(targetDirectory,6))
+	printf(fcfg, eucfgf[2], register_size & repeat(targetDirectory,6))
 end if
 
 
@@ -221,7 +234,7 @@ puts(fb,
 	)
 
 
-fb = open(prefix & "/bin/eui40tip", "w", 0t755)
+fb = open(SLASH & prefix & "/bin/eui40tip", "w", 0t755)
 if fb = -1 then
 	die("Cannot create eui40tip",{})
 end if
@@ -229,7 +242,7 @@ puts(fb,
 	"#!/bin/sh\n"&
 	targetBaseDirectory & "/euphoria-4.0-tip/bin/eui $@\n"
 	)
-
+	
 
 fb = open(prefix & "/bin/euc40tip", "w", 0t755)
 if fb = -1 then
@@ -240,35 +253,38 @@ puts(fb,
 	targetBaseDirectory & "/euphoria-4.0-tip/bin/euc $@\n"
 	)
 
-
+system("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2)
+system("chmod 755 /" & prefix & "/bin/eu[ic]41feb",2)
+logMsg("set execution bits on shortcuts")
 
 targetDirectory = targetBaseDirectory & "/euphoria-721157c2f5ef"
 -- install OpenEuphoria 4.0
-if not create_directory(targetDirectory, 0t755) then
-	logMsg(sprintf("Cannot create directory \'%s\'", targetDirectory))
-	abort(1)
+if not file_exists(targetDirectory) then
+	s = execCommand("tar -xf " & InitialDir&SLASH&"euphoria-721157c2f5ef.tar -C " & targetBaseDirectory)
+	if atom(s) then
+		logMsg("unable to run tar")
+		abort(1)
+	end if
+	logMsg("tar:" & s)
+	
+	fcfg = open(targetDirectory&SLASH&"bin/eu.cfg", "w", 0t644)
+	if fcfg = -1 then
+		logMsg(sprintf("configuration file \'%s\' cannot be created.",{targetDirectory&SLASH&"bin/eu.cfg"}))
+		abort(1)
+	end if
+	fcfg = delete_routine(fcfg, routine_id("my_close"))
+	printf(fcfg, eucfgf[1], register_size & repeat(targetDirectory,5))
 end if
-s = execCommand("tar -xf " & InitialDir&SLASH&"euphoria-721157c2f5ef.tar -C " & targetDirectory)
-if atom(s) then
-	logMsg("unable to run tar")
-	abort(1)
-end if
-logMsg(s)
 
-fcfg = open(targetDirectory&SLASH&"bin/eu.cfg", "w", 0t644)
-if fcfg = -1 then
-	logMsg("configuration file cannot be created.")
-	abort(1)
-end if
-fcfg = delete_routine(fcfg, routine_id("my_close"))
-printf(fcfg, eucfgf, register_size & repeat(targetDirectory,6))
-
-if file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
-	delete_file(targetBaseDirectory & SLASH & "euphoria-4.0-tip")
-end if
-s = execCommand("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip")
-if atom(s) then
-	logMsg("Cannot produce symlink")
-	abort(1)
-end if
-logMsg(s)
+if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
+	s = execCommand("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip")
+	if atom(s) then
+		logMsg("ln : Cannot produce symlink")
+		abort(1)
+	else
+		logMsg(sprintf("ln : %s to %s", {targetDirectory, targetBaseDirectory & SLASH & "euphoria-4.0-tip"}))
+	end if
+	logMsg(s)
+else
+	logMsg("euphoria-4.0-tip link already exists.")
+end if	
