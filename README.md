@@ -20,7 +20,7 @@ The -n is for testing.  As a side effect, the prefix is set to /tmp/test-install
 is installed there.  In this case you do not need sudoer's access and you can modify your PATH environment
 variable to test things out before running as root.  The dependencies will not get installed automatically though.
 
-Examples:
+Examples:t
 'sudo ./install_AIO -8p/usr'
 will install for a 64-bit system under the prefix /usr rather than /usr/local.
 
