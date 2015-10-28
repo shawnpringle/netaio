@@ -1,6 +1,6 @@
 All-in-One 32-bit Linux OpenEuphoria 4.1+4.0 archive with wxEuphoria/wxIDE
 
-To install, download the archive from http://www.rapideuphoria.com/install_AIO2.tgz.  Unpack the archive,
+To install, download the archive from http://www.rapideuphoria.com/install_aio2.tgz.  Unpack the archive,
 and type 'sudo ./install_AIO2'.
 
 The installer is to be run as root on Debian-based systems (compiled on Linux Mint 17.0 32-bit).

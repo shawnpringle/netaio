@@ -138,32 +138,35 @@ procedure cmdl_help()
 	die("Usage : %s %s [ -n ] [ -p /usr/local ] [ -32 ] [ -64 ]", cmd[1..2])
 end procedure
 
-
+with trace
 ------------------------------------------------------------------------------ 
 constant archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 register_size = 0
 boolean skip_count = 0
 sequence options = {}
+trace(1)
 for cmdi = 3 to length(cmd) do
 	if begins("-", cmd[cmdi]) then
 		object next = 0
 		for cmdij = 2 to length(cmd[cmdi]) do
-			integer opt = cmd[cmdi][cmdij]
-			if opt = 'p' then
-				next = {cmd[cmdi][cmdi+1..$]}
-				if length(next[1]) = 0 then
-					if cmdi = length(cmd) then
-						cmdl_help()
-					else
-						next = cmd[cmdi+1]
-					end if
-				end if
-				if find(next, {"/usr/local", "/usr", "/opt"}) = false then
-					logMsg("Option to -p should be one of /usr/local, /usr, or /opt")
-				end if
-				prefix = next
+			if skip_count then
+				skip_count = false
+				continue
 			end if
+			integer opt = cmd[cmdi][cmdij]
 			switch opt do
+				case 'p' then
+					next = cmd[cmdi][cmdij+1..$]
+					if length(next) = 0 then
+						if cmdi = length(cmd) then
+							cmdl_help()
+						else
+							next = cmd[cmdi+1]
+							skip_count = true
+						end if
+					end if
+					prefix = next
+					exit
 				case 'n' then
 					dry_run = true
 					prefix = "/tmp/test-install"
@@ -182,10 +185,6 @@ for cmdi = 3 to length(cmd) do
 	end if
 end for
 
-sequence archive_exists = {}
-sequence local_archive_name
-sequence net_archive_name
-
 -- verify user is root 
 object s = execCommand("id -u")
 if atom(s) then
@@ -198,23 +197,19 @@ if s[1] != GET_SUCCESS or s[2] != 0 and not dry_run then
     abort(1)
 end if
 
+sequence archive_exists = {}
+for k = 32 to 64 by 32 do
+	archive_exists = append(archive_exists, file_exists(sprintf(filesys:filename(archive_format), {k})))
+end for
 if register_size = 0 then
-	for k = 32 to 64 by 32 do
-		net_archive_name = sprintf(filesys:filename(archive_format), {k})
-		archive_exists = append(archive_exists, file_exists(net_archive_name))
-		if archive_exists[$] then
-			register_size = k
-		end if
-	end for
+	while find(register_size,{32,64})=0 with entry do
+	  display("Enter 32 or 64.")
+	entry
+	  register_size = floor(prompt_number("Enter the number of bits of your computer's processor:", {32,64}))
+	end while
 end if
-if not find(true, archive_exists) then
-	if not register_size then
-		while find(register_size,{32,64})=0 with entry do
-		  display("Enter 32 or 64.")
-		entry
-		  register_size = floor(prompt_number("Enter the number of bits of your computer's processor:", {32,64}))
-		end while
-	end if
+sequence net_archive_name
+if not archive_exists[register_size/32] then
 	net_archive_name = sprintf(filesys:filename(archive_format), {register_size})
 	-- installed by default on Mint.  Is this needed here?
 	if dry_run and not isInstalled("wget") then
@@ -222,10 +217,13 @@ if not find(true, archive_exists) then
 	else
 		installIfNot("wget")
 	end if
-	system("wget " & net_archive_name,2)
+	if system_exec(sprintf("wget " & archive_format, {register_size}),2) != 0 then
+		die("Cannot download needed file : " & archive_format,{register_size})
+	end if
 else
 	net_archive_name = sprintf(filesys:filename(archive_format), {register_size})
 end if
+sequence local_archive_name
 local_archive_name = filesys:filename(net_archive_name)
 execCommand("tar xzf " & local_archive_name & " eu41.tgz" )
 sequence targetBaseDirectory = prefix & "/share"
@@ -245,6 +243,21 @@ for i = 1 to length(s) do
 		logMsg("Pretending to install " & s[i])
 	else
 		installIfNot(s[i])
+	end if
+end for
+
+-- check to make sure we have really installed ALL dependencies
+constant libraries = dir("bin32")
+for li = 1 to length(libraries) do
+	sequence library = libraries[li][D_NAME]
+	s = execCommand(sprintf("ldd bin%d/%s | grep -v /.* +=> /.*", {register_size, library}))
+	if atom(s) then
+		continue
+	end if
+	if length(s) then
+		logMsg(s)
+		die("Missing library, please report log to http://www.github.com/shawnpringle/netaio or \n"&
+		    "the EUForum http://www.openeuphoria.com/forum/index.wc", {})
 	end if
 end for
 
@@ -321,7 +334,7 @@ else
 end if
 
 logMsg("Adding common directories for both versions of Euphoria")
-create_directory(targetBaseDirectory & "/euphoria/include", 0t755, 1)
+create_directory(targetBaseDirectory & "/euphoria/include", 0t755, true)
 move_file(targetBaseDirectory & "/euphoria-4.1.0/include/wxeu", targetBaseDirectory & "/euphoria/include/wxeu")
 move_file(targetBaseDirectory & "/euphoria-4.1.0/include/myLibs", targetBaseDirectory & "/euphoria/include/myLibs")
 move_file(targetBaseDirectory & "/euphoria-4.1.0/include/euslibs", targetBaseDirectory & "/euphoria/include/euslibs")
@@ -368,9 +381,10 @@ puts(fb,
 close(fb)
 
 logMsg("setting execution bits on shortcuts")
-system("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2)
-system("chmod 755 /" & prefix & "/bin/eu[ic]41feb",2)
-
+if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) or
+	system_exec("chmod 755 /" & prefix & "/bin/eu[ic]41feb",2) then
+	logMsg("unable to set execute permission on all shortcuts")
+end if
 
 logMsg("Setting default Euphoria to Euphoria 4.1 Feb, 2015...")
 s = execCommand("ln -s " & prefix & "/bin/eui41feb " & prefix & "/bin/eui")
@@ -385,4 +399,3 @@ logMsg("Copying libraries and binaries...")
 s = execCommand(sprintf("cp bin%d/wxide.bin %s/bin", repeat(register_size,1) & {prefix}))
 s = execCommand(sprintf("cp bin%d/*.so* %s/lib", {register_size, prefix}))
 s = execCommand(sprintf("chmod +x %s/lib/*.*", {prefix}))
-
