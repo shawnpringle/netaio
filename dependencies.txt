@@ -14,3 +14,4 @@ wx2.8-i18n
 wxformbuilder
 wxsqlite3-doc
 libjpeg62
+libgtk-3-0

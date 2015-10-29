@@ -7,8 +7,8 @@ include std/dll.e
 include std/filesys.e
 include std/search.e
 include std/console.e
-
-
+include std/utils.e
+include std/os.e
 
 enum type boolean true, false=0 end type
 
@@ -45,6 +45,7 @@ constant eucfgf =
 -eub %s/bin/eub
 """
 }
+constant old_aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 constant cmd = command_line()
 			
 constant info = pathinfo(cmd[2])
@@ -60,8 +61,11 @@ if f_debug =-1 then
   		abort(1)
   	end if
 end if
------------------------------------------------------------------------------- 
- 
+
+------------------------------------------------------------------------------
+----------------------------  R O U T I N E S  -------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 public procedure logMsg(sequence msg, sequence args = {}) 
   puts(f_debug, msg & "\n") 
   flush(f_debug) 
@@ -138,13 +142,16 @@ procedure cmdl_help()
 	die("Usage : %s %s [ -n ] [ -p /usr/local ] [ -32 ] [ -64 ]", cmd[1..2])
 end procedure
 
-with trace
 ------------------------------------------------------------------------------ 
-constant archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
+------------------------------------------------------------------------------
+----------------------------------   M A I N   -------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 register_size = 0
 boolean skip_count = 0
-sequence options = {}
-trace(1)
+sequence InitialDir = current_dir()
+void = chdir(info[PATH_DIR])
+crash_file(InitialDir&SLASH&info[PATH_BASENAME]&".err")
 for cmdi = 3 to length(cmd) do
 	if begins("-", cmd[cmdi]) then
 		object next = 0
@@ -171,7 +178,11 @@ for cmdi = 3 to length(cmd) do
 					dry_run = true
 					prefix = "/tmp/test-install"
 					if file_exists(prefix) and not remove_directory(prefix, true) then
-						die("Cannot remove %s", {prefix})
+						remove_directory(prefix, true)
+						sleep(0.1)
+						if file_exists(prefix) then
+							die("Cannot remove %s", {prefix})
+						end if
 					end if
 					create_directory(prefix, 0t755, false)
 					case '8','4' then
@@ -197,10 +208,7 @@ if s[1] != GET_SUCCESS or s[2] != 0 and not dry_run then
     abort(1)
 end if
 
-sequence archive_exists = {}
-for k = 32 to 64 by 32 do
-	archive_exists = append(archive_exists, file_exists(sprintf(filesys:filename(archive_format), {k})))
-end for
+-- determine register_size if not already set.
 if register_size = 0 then
 	while find(register_size,{32,64})=0 with entry do
 	  display("Enter 32 or 64.")
@@ -208,66 +216,128 @@ if register_size = 0 then
 	  register_size = floor(prompt_number("Enter the number of bits of your computer's processor:", {32,64}))
 	end while
 end if
-sequence net_archive_name
-if not archive_exists[register_size/32] then
-	net_archive_name = sprintf(filesys:filename(archive_format), {register_size})
-	-- installed by default on Mint.  Is this needed here?
-	if dry_run and not isInstalled("wget") then
+
+-- make sure we have wget installed
+if not file_exists("/usr/bin/wget") and not file_exists("/usr/local/bin/wget") then
+	if dry_run then
 		die("Need wget installed.",{})
 	else
 		installIfNot("wget")
 	end if
-	if system_exec(sprintf("wget " & archive_format, {register_size}),2) != 0 then
-		die("Cannot download needed file : " & archive_format,{register_size})
-	end if
-else
-	net_archive_name = sprintf(filesys:filename(archive_format), {register_size})
 end if
-sequence local_archive_name
-local_archive_name = filesys:filename(net_archive_name)
-execCommand("tar xzf " & local_archive_name & " eu41.tgz" )
-sequence targetBaseDirectory = prefix & "/share"
-sequence targetDirectory = targetBaseDirectory & "/euphoria-4.1.0"
-sequence InitialDir = current_dir()
-void = chdir(info[PATH_DIR])
-crash_file(InitialDir&SLASH&info[PATH_BASENAME]&".err")
+-- prepare prefix subdirs
+------------------------------------------------------------------------------
+constant targetBaseDirectory = prefix & "/share"
+create_directory(prefix & "/bin", 0t755, true)
+create_directory(prefix & "/lib", 0t755)
+logMsg("Adding common directories for both versions of Euphoria")
+create_directory(targetBaseDirectory & "/euphoria/include", 0t755, true)
 
--- install dependencies 
-s = read_lines(InitialDir&SLASH&"dependencies.txt")
-if atom(s) then
-	logMsg("dependencies.txt not readable.")
-	abort(1)
-end if
-for i = 1 to length(s) do
-	if dry_run then
-		logMsg("Pretending to install " & s[i])
-	else
-		installIfNot(s[i])
+
+------------------------------------------------------------------------------
+--------------------------- D O W N L O A D S  -------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+
+constant old_aio_location = sprintf(old_aio_archive_format, {register_size})
+constant wxide_location   = "http://downloads.sourceforge.net/project/wxeuphoria/wxIDE/v0.8.0/wxide-0.8.0-linux-x86" & iff(register_size=64,"-64","") & ".tgz"
+constant gtk3_location    = "https://sites.google.com/site/euphoriagtk/EuGTK4.9.9.tar.gz" 
+constant wget_archives = { {old_aio_location,"eu41.tgz"}, 
+						   {wxide_location, "" },
+						   {gtk3_location, ""}	
+}
+
+for h = 1 to length(wget_archives) do
+	sequence net_archive_name = wget_archives[h][1]
+	sequence local_archive_name = filesys:filename(net_archive_name)
+	sequence list = wget_archives[h][2]
+	if system_exec("tar tf " & local_archive_name & ">/dev/null",2) != 0 and
+		system_exec("wget -c " & net_archive_name,2) != 0 then
+		die("Cannot download needed file : %s", {net_archive_name})
+	end if
+	if system_exec("tar xzf " & local_archive_name & ' ' & list,2) then
+		die("Could not extract %s",{list})
 	end if
 end for
 
+
+
+
+------------------------------------------------------------------------------
+--------------------------------  G T K  -------------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+create_directory(targetBaseDirectory & "/euphoria/include/gtk", 0t755, true)
+constant gtk_es = dir(InitialDir & "/demos/Gtk*.e")
+if atom(gtk_es) then
+	die("Cannot list the gtk demos folder.", {})
+end if
+-- gtk_es a sequence
+for i = 1 to length(gtk_es) do
+	logMsg(sprintf("%s => %s", {InitialDir & SLASH & "demos" & SLASH & gtk_es[i][D_NAME],
+		targetBaseDirectory & "/euphoria/include/gtk/" & gtk_es[i][D_NAME]}))
+	copy_file(InitialDir & SLASH & "demos" & SLASH & gtk_es[i][D_NAME],
+		targetBaseDirectory & "/euphoria/include/gtk/" & gtk_es[i][D_NAME])
+end for
+create_directory(targetBaseDirectory & "/EuGTK4.9.9/documentation", 0t755, true)
+system("ln -s " & targetBaseDirectory & "/euphoria/include/gtk " & targetBaseDirectory & "/EuGTK4.9.9/include",2)
+constant html_files = dir(InitialDir & "/demos/documentation/*.*")
+for htmli = 1 to length(html_files) do
+	copy_file(InitialDir & "/demos/documentation/" & html_files[htmli][D_NAME],
+		targetBaseDirectory & "/EuGTK4.9.9/documentation/" & html_files[htmli][D_NAME])
+end for
+
+------------------------------------------------------------------------------
+------------------------------- w x I D E  -----------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+
+constant wxide_archive_base = InitialDir & SLASH & filesys:filebase(wxide_location)
+-- intall wxeu binary wrapper
 -- check to make sure we have really installed ALL dependencies
-constant libraries = dir("bin32")
+constant libraries = dir(wxide_archive_base & "/bin")
 for li = 1 to length(libraries) do
 	sequence library = libraries[li][D_NAME]
-	s = execCommand(sprintf("ldd bin%d/%s | grep -v /.* +=> /.*", {register_size, library}))
-	if atom(s) then
-		continue
-	end if
-	if length(s) then
-		logMsg(s)
-		die("Missing library, please report log to http://www.github.com/shawnpringle/netaio or \n"&
-		    "the EUForum http://www.openeuphoria.com/forum/index.wc", {})
+	if match(".so.", library) then
+		s = execCommand(sprintf("ldd %s/bin/%s | grep -v /.* +=> /.*", {wxide_archive_base, library}))
+		if atom(s) then
+			continue
+		end if
+		if length(s) then
+			logMsg(s)
+			die("Missing library, please report log to http://www.github.com/shawnpringle/netaio or \n"&
+				"the EUForum http://www.openeuphoria.com/forum/index.wc", {})
+		end if
+		if not copy_file(InitialDir & SLASH & filesys:filebase(wxide_location) & "/bin/" & library, prefix & "/lib/" & library) then
+			die("Could not install %s into %s/lib", {library, prefix})
+		end if
 	end if
 end for
 
--- intall wxeu binary wrapper
-create_directory(prefix & "/lib", 0t755)
-copy_file(sprintf("bin%d/libwxeu.so.16", {register_size}), prefix & "/lib/libwxeu.so.16")
+if not copy_file(wxide_archive_base & "/bin/wxide.bin", prefix & "/bin/wxide") then
+	die("Unable to copy %s/bin/wxide.bin to %s/bin/wxide", {wxide_archive_base, prefix})
+end if
+s = execCommand("chmod 755 "& prefix &"/bin/wxide")
+integer wxide_last_slash = rfind( '/', wxide_location )
+integer wxide_dash_linux = match("-linux", wxide_location, wxide_last_slash )
+constant wxide_share_dest_dir = targetBaseDirectory & "/" & wxide_location[wxide_last_slash..wxide_dash_linux-1] 
+create_directory(wxide_share_dest_dir & "/docs", 0t755, true)
+copy_file(wxide_archive_base & "/docs/docs.css", wxide_share_dest_dir & "/docs/docs.css")
+copy_file(wxide_archive_base & "/docs/wxide.html", wxide_share_dest_dir & "/docs/wxide.html")
+system("ln -s " & targetBaseDirectory & "/euphoria/include/wxeu " & wxide_share_dest_dir & "/include", 2)
+create_directory(targetBaseDirectory & "/euphoria/include/wxeu", 0t755)
+copy_file(wxide_archive_base & "/src/wxeu/wxeud.e", targetBaseDirectory & "/euphoria/include/wxeu/wxeud.e", true)
+system("chmod a+rx " & targetBaseDirectory & "/euphoria/include/wxeu", 2)
 s = execCommand("ldconfig " & prefix & "/lib")
 if atom(s) then
 	logMsg("Could not execute ldconfig.")
 end if
+
+------------------------------------------------------------------------------
+------------------E U P H O R I A   4 . 1  -----------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+sequence targetDirectory = targetBaseDirectory & "/euphoria-4.1.0"
 atom fcfg
 integer fb
 if file_exists(targetDirectory) then
@@ -278,7 +348,7 @@ else
 		logMsg(sprintf("Cannot create directory \'%s\'", {targetDirectory}))  	
 		abort(1)
 	end if
-	s = execCommand("tar -xvf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory)
+	s = execCommand("tar -xf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory)
 	if atom(s) then
 		logMsg("unable to run tar")
 		abort(1)
@@ -291,54 +361,8 @@ else
 	end if
 	printf(fcfg, eucfgf[2], register_size & {prefix} & repeat(targetDirectory,6))
 end if
-
-
-create_directory(prefix & "/bin", 0t755, true)
-move_file(targetDirectory & "bin/wxide.bin", prefix & "/bin/wxide")
-delete_file(targetDirectory & "bin/wxide")
-
-targetDirectory = targetBaseDirectory & "/euphoria-721157c2f5ef"
-remove_directory(targetDirectory, true)
--- install OpenEuphoria 4.0
-if not file_exists(targetDirectory) then
-	logMsg("installing OpenEuphoria 4.0")
-
-	s = execCommand("tar -xf " & InitialDir&SLASH&"euphoria-721157c2f5ef.tar -C " & targetBaseDirectory)
-	if atom(s) then
-		logMsg("unable to run tar")
-		abort(1)
-	end if
-	if length(s) then
-		logMsg("tar:" & s)
-	end if
-	
-	fcfg = open(targetDirectory&SLASH&"bin/eu.cfg", "w", true)
-	if fcfg = -1 then
-		logMsg(sprintf("configuration file \'%s\' cannot be created.",{targetDirectory&SLASH&"bin/eu.cfg"}))
-		abort(1)
-	end if
-	printf(fcfg, eucfgf[1], register_size & {prefix} & repeat(targetDirectory,5))
-end if
-
-if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
-	s = execCommand("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip")
-	if atom(s) then
-		logMsg("ln : Cannot produce symlink")
-		abort(1)
-	else
-		logMsg(sprintf("linking : %s to %s...", {targetDirectory, targetBaseDirectory & SLASH & "euphoria-4.0-tip"}))
-	end if
-	logMsg(s)
-else
-	logMsg("euphoria-4.0-tip link already exists.")
-end if
-
-logMsg("Adding common directories for both versions of Euphoria")
-create_directory(targetBaseDirectory & "/euphoria/include", 0t755, true)
-move_file(targetBaseDirectory & "/euphoria-4.1.0/include/wxeu", targetBaseDirectory & "/euphoria/include/wxeu")
-move_file(targetBaseDirectory & "/euphoria-4.1.0/include/myLibs", targetBaseDirectory & "/euphoria/include/myLibs")
-move_file(targetBaseDirectory & "/euphoria-4.1.0/include/euslibs", targetBaseDirectory & "/euphoria/include/euslibs")
-
+remove_directory(targetBaseDirectory & "/euphoria-4.1.0/include/wxeu", true)
+-- short cut for 4.1
 logMsg("Creating shortcut binaries")
 fb = open(prefix & "/bin/eui41feb", "w")
 if fb = -1 then
@@ -360,6 +384,45 @@ puts(fb,
 	)
 close(fb)
 
+------------------------------------------------------------------------------
+------------------E U P H O R I A   4 . 0  -----------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+targetDirectory = targetBaseDirectory & "/euphoria-721157c2f5ef"
+remove_directory(targetDirectory, true)
+-- install OpenEuphoria 4.0
+if not file_exists(targetDirectory) then
+	logMsg("installing OpenEuphoria 4.0")
+
+	s = execCommand("tar -xf " & InitialDir&SLASH&"euphoria-721157c2f5ef.tar -C " & targetBaseDirectory)
+	if atom(s) then
+		logMsg("unable to run tar")
+		abort(1)
+	end if
+	if length(s) then
+		logMsg("tar:" & s)
+	end if
+	
+	fcfg = open(targetDirectory&SLASH&"bin/eu.cfg", "w", true)
+	if fcfg = -1 then
+		logMsg(sprintf("configuration file \'%s\' cannot be created.",{targetDirectory&SLASH&"bin/eu.cfg"}))
+		abort(1)
+	end if
+	printf(fcfg, eucfgf[1], register_size & {prefix} & repeat(targetDirectory,5))
+	close(fcfg)
+end if
+if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
+	s = execCommand("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip")
+	if atom(s) then
+		logMsg("ln : Cannot produce symlink")
+		abort(1)
+	else
+		logMsg(sprintf("linking : %s to %s...", {targetDirectory, targetBaseDirectory & SLASH & "euphoria-4.0-tip"}))
+	end if
+	logMsg(s)
+else
+	logMsg("euphoria-4.0-tip link already exists.")
+end if
 fb = open(SLASH & prefix & "/bin/eui40tip", "w")
 if fb = -1 then
 	die("Cannot create eui40tip",{})
@@ -369,7 +432,6 @@ puts(fb,
 	targetBaseDirectory & "/euphoria-4.0-tip/bin/eui $@\n"
 	)
 close(fb)
-
 fb = open(prefix & "/bin/euc40tip", "w")
 if fb = -1 then
     die("Cannot create euc40tip",{})
@@ -380,6 +442,22 @@ puts(fb,
 	)
 close(fb)
 
+-------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+----------------------------- MYLIBS and EUSLIBS -----------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+-- MUST BE DONE AFTER 4.1, these come with the former aio archive.
+move_file(targetBaseDirectory & "/euphoria-4.1.0/include/myLibs", targetBaseDirectory & "/euphoria/include/myLibs")
+move_file(targetBaseDirectory & "/euphoria-4.1.0/include/euslibs", targetBaseDirectory & "/euphoria/include/euslibs")
+
+system("chmod a+rx " & targetBaseDirectory & "/euphoria/include/myLibs", 2)
+system("chmod a+rx " & targetBaseDirectory & "/euphoria/include/euslibs", 2)
+
+-------------------------------------------------------------------------
+
+
 logMsg("setting execution bits on shortcuts")
 if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) or
 	system_exec("chmod 755 /" & prefix & "/bin/eu[ic]41feb",2) then
@@ -389,13 +467,32 @@ end if
 logMsg("Setting default Euphoria to Euphoria 4.1 Feb, 2015...")
 s = execCommand("ln -s " & prefix & "/bin/eui41feb " & prefix & "/bin/eui")
 s = execCommand("ln -s " & prefix & "/bin/euc41feb " & prefix & "/bin/euc")
-sequence eubins = {"creole", "eubind", "eudis", "eudist", "eudoc", "euloc", "eushroud", "eutest"}
+sequence eubins = {"eubind", "eudis", "eudist", "euloc", "eushroud", "eutest", "eucoverage"}
 for i = 1 to length(eubins) do
 	sequence eubin = eubins[i]
 	s = execCommand("ln -s " & targetBaseDirectory & "/euphoria-4.1.0/bin/" & eubin & " " & prefix & "/bin/" & eubin)
 end for
+move_file(targetBaseDirectory & "/euphoria-4.1.0/bin/creole", targetBaseDirectory & "/bin/creole")
+move_file(targetBaseDirectory & "/euphoria-4.1.0/bin/eudoc", targetBaseDirectory & "/bin/eudoc")
+delete_file(targetBaseDirectory & "/euphoria-4.1.0/bin/wxide.bin")
+delete_file(targetBaseDirectory & "/euphoria-4.1.0/bin/wxide")
 
-logMsg("Copying libraries and binaries...")
-s = execCommand(sprintf("cp bin%d/wxide.bin %s/bin", repeat(register_size,1) & {prefix}))
-s = execCommand(sprintf("cp bin%d/*.so* %s/lib", {register_size, prefix}))
-s = execCommand(sprintf("chmod +x %s/lib/*.*", {prefix}))
+
+-- install dependencies apt-get supports.
+------------------------------------------------------------------------------
+---------------------------- A P T   G E T  ----------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+s = read_lines(InitialDir&SLASH&"dependencies.txt")
+if atom(s) then
+	logMsg("dependencies.txt not readable.")
+	abort(1)
+end if
+for i = 1 to length(s) do
+	if dry_run then
+		logMsg("Pretending to install " & s[i])
+	else
+		installIfNot(s[i])
+	end if
+end for
+
