@@ -224,32 +224,6 @@ for eubini = 1 to length(eubins) do
 	delete_file( install_root & SLASH & install_prefix & SLASH & "bin" & SLASH & eubin )
 	delete_file( install_root & SLASH & install_prefix & SLASH & "lib" & SLASH & eubin )
 end for
-
-create_directory( install_root  & SLASH & install_prefix & SLASH & euphoria_versioned_directory & "/docs/html", 0t755, true)
-object html_files = dir( source_directory & "/source/build/html" )
-for htmli = 1 to length(html_files) do
-	sequence html_file = html_files[htmli][D_NAME]
-	if find('d',html_files[htmli][D_ATTRIBUTES]) then
-		create_directory( install_root  & SLASH & install_prefix & SLASH & euphoria_versioned_directory & "/docs/html/" & html_file, 0t755, true)
-		continue
-	end if
-	copy_file(  source_directory & "/source/build/html/" & html_file, 
-		install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory & "/docs/html/" & html_file)
-end for
-
-object js_files = dir( source_directory & "/source/build/html/js" )
-for jsi = 1 to length(js_files) do
-	sequence js_file = js_files[jsi][D_NAME]
-	copy_file(  source_directory & "/source/build/html/js/" & js_file, 
-		install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory & "/docs/html/js/" & js_file)
-end for
-
-object image_files = dir( source_directory & "/source/build/html/images" )
-for imagei = 1 to length(image_files) do
-	sequence image_file = image_files[imagei][D_NAME]
-	copy_file(  source_directory & "/source/build/html/images/" & image_file, 
-		install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory & "/docs/html/images/" & image_file)
-end for
 install_copy(source_directory & "/bin/ecp.dat", bin_dir, 0t644)
 chdir(install_root & SLASH & install_prefix)
 system("tar -cf " & InitialDir & "euprogs.tar bin",2)
