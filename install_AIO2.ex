@@ -278,7 +278,7 @@ if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2)
 		die("Cannot download needed file : " & aio_archive_format,{register_size})
 end if
 
-targetDirectory = targetBaseDirectory & "/euphoria-4.1"
+targetDirectory = targetBaseDirectory & "/euphoria-" & eu41revision
 
 if file_exists(targetDirectory) then
 	logMsg(sprintf("Something already exists at \'%s\'.\nOpen Euphoria not (re)installed.", {targetDirectory}))
@@ -299,6 +299,8 @@ else
 	end if
 	printf(fcfg, eucfgf[2], register_size & {prefix} & repeat(targetDirectory,6))
 end if
+
+system(sprintf("ln -s %s/euphoria-%s %s/euphoria-4.1", {targetBaseDirectory, eu41revision, targetBaseDirectory}))
 
 logMsg("Creating shortcut scripts for 4.1")
 create_directory(prefix & "/bin", 0t755)
@@ -448,6 +450,8 @@ if not file_exists(targetDirectory) then
 	printf(fcfg, eucfgf[1], register_size & {prefix} & repeat(targetDirectory,5))
 end if
 
+
+
 logMsg("Setting this version of Euphoria as the TIP of 4.0 with a symbolic link...")
 delete_file(targetBaseDirectory & SLASH & "euphoria-4.0-tip")
 if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
@@ -484,12 +488,49 @@ if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) then
 	logMsg("unable to set execute permission on all shortcuts")
 end if
 
+
+
+logMsg("Setting this version of Euphoria as the TIP of 4.0 with a symbolic link...")
+delete_file(targetBaseDirectory & SLASH & "euphoria-4.0")
+if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0") then
+	if system_exec("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0") then
+		logMsg("ln : Cannot produce symlink")
+		abort(1)
+	end if
+else
+	logMsg("euphoria-4.0 link already exists.")
+end if
+logMsg("Creating shortcut scripts for 4.0...")
+fb = open(SLASH & prefix & "/bin/eui40", "w")
+if fb = -1 then
+	die("Cannot create eui40",{})
+end if
+puts(fb,
+	"#!/bin/sh\n"&
+	targetBaseDirectory & "/euphoria-4.0/bin/eui $@\n"
+	)
+close(fb)
+
+fb = open(prefix & "/bin/euc40", "w")
+if fb = -1 then
+    die("Cannot create euc40",{})
+end if
+puts(fb,
+	"#!/bin/sh\n"&
+	targetBaseDirectory & "/euphoria-4.0/bin/euc $@\n"
+	)
+close(fb)
+
+logMsg("setting execution bits on shortcuts")
+if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40",2) then
+	logMsg("unable to set execute permission on all shortcuts")
+end if
+
+
 --logMsg("Copying libraries and binaries...")
 move_file(targetBaseDirectory & "/euphoria-4.1/include/myLibs", targetBaseDirectory & "/euphoria-common/include/myLibs")
 move_file(targetBaseDirectory & "/euphoria-4.1/include/euslibs", targetBaseDirectory & "/euphoria-common/include/euslibs")
 system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/myLibs", 2)
 system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/euslibs", 2)
 
--- s = execCommand(sprintf("cp bin%d/wxide.bin %s/bin", repeat(register_size,1) & {prefix}))
--- s = execCommand(sprintf("cp bin%d/*.so* %s/lib", {register_size, prefix}))
--- s = execCommand(sprintf("chmod +x %s/lib/*.*", {prefix}))
+logMsg("Installation Completed.")
