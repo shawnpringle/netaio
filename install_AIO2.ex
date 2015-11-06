@@ -9,9 +9,14 @@ include std/search.e
 include std/console.e
 include std/utils.e
 include std/os.e
+include revisions.e
 
 
 enum type boolean true, false=0 end type
+
+type spaceless(sequence s)
+	return not find(' ',s)
+end type
 
 sequence prefix = "/usr/local"
 boolean  dry_run   = false
@@ -255,6 +260,8 @@ for i = 1 to length(eubins) do
 	s = execCommand("ln -s " & targetBaseDirectory & "/euphoria/bin/" & eubin & " " & prefix & "/bin/" & eubin)
 end for
 
+atom fb, fcfg
+spaceless targetDirectory, net_archive_name, local_archive_name
 --eu41--------------------------------------------------------
 ----                                                      ----
 ----              EEEE  U  U       4 4  1                 ----
@@ -263,18 +270,16 @@ end for
 --------------------------------------------------------------
 constant aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 -- Get eu41.tgz
-sequence net_archive_name = sprintf(aio_archive_format, {register_size})
-sequence local_archive_name = filesys:filename(net_archive_name)
+net_archive_name = sprintf(aio_archive_format, {register_size})
+local_archive_name = filesys:filename(net_archive_name)
 if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2)
 	and
 	(system_exec("wget -c " & net_archive_name,2) and system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2)) then
 		die("Cannot download needed file : " & aio_archive_format,{register_size})
 end if
 
-sequence targetDirectory = targetBaseDirectory & "/euphoria-4.1.0"
+targetDirectory = targetBaseDirectory & "/euphoria-4.1"
 
-atom fcfg
-integer fb
 if file_exists(targetDirectory) then
 	logMsg(sprintf("Something already exists at \'%s\'.\nOpen Euphoria not (re)installed.", {targetDirectory}))
 else
@@ -303,7 +308,7 @@ if fb = -1 then
 end if
 puts(fb,
 	"#!/bin/sh\n"&
-	targetBaseDirectory & "/euphoria-4.1.0/bin/eui $@\n"
+	targetBaseDirectory & "/euphoria-4.1/bin/eui $@\n"
 	)
 close(fb)
 
@@ -313,14 +318,14 @@ if fb = -1 then
 end if
 puts(fb,
 	"#!/bin/sh\n"&
-	targetBaseDirectory & "/euphoria-4.1.0/bin/euc $@\n"
+	targetBaseDirectory & "/euphoria-4.1/bin/euc $@\n"
 	)
 close(fb)
 if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]41",2) then
 	die("unable to set execute permission on all shortcuts", {})
 end if
 logMsg("Setting default Euphoria to Euphoria 4.1 Feb, 2015...")
-system("ln -s " & targetBaseDirectory & "/euphoria-4.1.0 " & targetBaseDirectory & "/euphoria",2)
+system("ln -s " & targetBaseDirectory & "/euphoria-4.1 " & targetBaseDirectory & "/euphoria",2)
 
 
 --wxide-------------------------------------------------------
@@ -339,7 +344,7 @@ local_archive_name = filesys:filename(net_archive_name)
 if system_exec("tar -xzf " & local_archive_name,2)
 	and
 	(system_exec("wget -c " & net_archive_name,2) and system_exec("tar -xzf " & local_archive_name,2)) then
-		die("Cannot download needed file : " & aio_archive_format,{register_size})
+		die("Cannot download needed file : %s",{local_archive_name})
 end if
 logMsg("installing WXIDE") 
 constant wxide_archive_base = InitialDir & SLASH & filesys:filebase(wxide_location)
@@ -382,41 +387,7 @@ s = execCommand("ldconfig " & prefix & "/lib")
 if atom(s) then
 	logMsg("Could not execute ldconfig.")
 end if
-/*
--- Install wxIDE
 
-if system_exec(  sprintf( "tar xzf %s %s/bin/libwx_gtk2u-2.9.so.4 %s/bin/libwxeu.so.2.9.17 %s/bin/wxide.bin",
-	{local_archive_name} & repeat(filesys:filebase(local_archive_name),3) ), 2  ) then
-	die("Cannot extract the needed files from %s", {local_archive_name})
-end if
--- check to make sure we have really installed ALL dependencies
-constant libraries = dir(filebase(local_archive_name) & "/bin")
-create_directory(prefix & "/lib", 0t755)
--- intall wxeu binary wrapper
-copy_file(sprintf("%s/", {local_archive_name}), prefix & "/lib/")
-for li = 1 to length(libraries) do
-	sequence library = libraries[li][D_NAME]
-	if match(".so.", library) then
-		s = execCommand(sprintf("ldd %s/bin/%s | grep -v /.* +=> /.*", {filebase(local_archive_name), library}))
-		if atom(s) then
-			continue
-		end if
-		if length(s) then
-			logMsg(s)
-			die("Missing library, please report log to http://www.github.com/shawnpringle/netaio or \n"&
-				"the EUForum http://www.openeuphoria.com/forum/index.wc", {})
-		end if
-		copy_file(sprintf("%s/bin/%s", {filebase(local_archive_name),library}), prefix & "/lib/" & library)
-	end if
-end for
-create_directory(prefix & "/bin", 0t755, true)
-move_file(filebase(local_archive_name) & "/bin/wxide.bin", prefix & "/bin/wxide")
-move_file(targetBaseDirectory & "/euphoria-4.1.0/include/wxeu", targetBaseDirectory & "/euphoria-common/include/wxeu")
-s = execCommand("ldconfig " & prefix & "/lib")
-if atom(s) then
-	logMsg("Could not execute ldconfig.")
-end if
-*/
 --gtk---------------------------------------------------------
 ----                                                      ----
 ----                G     TTT  K  K                       ----
@@ -459,13 +430,13 @@ end for
 ----              EE    U  U       444  0 0               ----
 ----              EEEE  UUUU         4  000               ----
 --------------------------------------------------------------
-targetDirectory = targetBaseDirectory & "/euphoria-721157c2f5ef"
+targetDirectory = targetBaseDirectory & "/euphoria-" & eu40revision
 remove_directory(targetDirectory, true)
 -- install OpenEuphoria 4.0
 if not file_exists(targetDirectory) then
 	logMsg("installing OpenEuphoria 4.0")
 
-	if system_exec("tar -xf " & InitialDir&SLASH&"euphoria-721157c2f5ef.tar -C " & targetBaseDirectory,2) then
+	if system_exec("tar -xf " & InitialDir&SLASH&"euphoria-" & eu40revision &".tar -C " & targetBaseDirectory,2) then
 		die("tar: error running tar.", {})
 	end if
 	
@@ -514,8 +485,8 @@ if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) then
 end if
 
 --logMsg("Copying libraries and binaries...")
-move_file(targetBaseDirectory & "/euphoria-4.1.0/include/myLibs", targetBaseDirectory & "/euphoria-common/include/myLibs")
-move_file(targetBaseDirectory & "/euphoria-4.1.0/include/euslibs", targetBaseDirectory & "/euphoria-common/include/euslibs")
+move_file(targetBaseDirectory & "/euphoria-4.1/include/myLibs", targetBaseDirectory & "/euphoria-common/include/myLibs")
+move_file(targetBaseDirectory & "/euphoria-4.1/include/euslibs", targetBaseDirectory & "/euphoria-common/include/euslibs")
 system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/myLibs", 2)
 system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/euslibs", 2)
 
