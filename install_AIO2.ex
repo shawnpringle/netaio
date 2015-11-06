@@ -534,3 +534,13 @@ system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/myLibs", 
 system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/euslibs", 2)
 
 logMsg("Installation Completed.")
+printf(io:STDOUT, """ 
+The installation is now complete.  You can open the documentation for Euphoria 4.0 at:
+   file://%s/euphoria-4.0/docs/html/index.html
+You can open the documentation for Euphoria 4.1 at:
+   file://%s/euphoria-4.1/docs/html/index.html
+You can open the EuGtk documentation at:
+   file://%s/EuGTK4.9.9/documentation/
+You can open the WXIDE documentation at:
+   file://%s/wxide-0.8.0/docs/wxide.html
+""", repeat(targetBaseDirectory, 4))
