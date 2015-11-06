@@ -13,3 +13,5 @@ wx2.8-headers
 wx2.8-i18n
 wxformbuilder
 wxsqlite3-doc
+libc6-dev
+gcc
