@@ -329,103 +329,6 @@ end if
 logMsg("Setting default Euphoria to Euphoria 4.1 Feb, 2015...")
 system("ln -s " & targetBaseDirectory & "/euphoria-4.1 " & targetBaseDirectory & "/euphoria",2)
 
-
---wxide-------------------------------------------------------
-----                                                      ----
-----              W     W X   X  III DDDD EEEE            ----
-----               W W W    X     I   D D EE              ----
-----                W W   X   X  III DDDD EEEE            ----
---------------------------------------------------------------
--- Get wxIDE
-if register_size = 32 then
-	net_archive_name = "http://downloads.sourceforge.net/project/wxeuphoria/wxIDE/v0.8.0/wxide-0.8.0-linux-x86.tgz"
-else
-	net_archive_name = "http://downloads.sourceforge.net/project/wxeuphoria/wxIDE/v0.8.0/wxide-0.8.0-linux-x86-64.tgz"
-end if
-local_archive_name = filesys:filename(net_archive_name)
-if system_exec("tar -xzf " & local_archive_name,2)
-	and
-	(system_exec("wget -c " & net_archive_name,2) and system_exec("tar -xzf " & local_archive_name,2)) then
-		die("Cannot download needed file : %s",{local_archive_name})
-end if
-logMsg("installing WXIDE") 
-constant wxide_archive_base = InitialDir & SLASH & filesys:filebase(wxide_location)
--- intall wxeu binary wrapper
--- check to make sure we have really installed ALL dependencies
-
-constant libraries = dir(wxide_archive_base & "/bin")
-for li = 1 to length(libraries) do
-	sequence library = libraries[li][D_NAME]
-	if match(".so.", library) then
-		s = execCommand(sprintf("ldd %s/bin/%s | grep -v /.* +=> /.*", {wxide_archive_base, library}))
-		if atom(s) then
-			continue
-		end if
-		if length(s) then
-			logMsg(s)
-			die("Missing library, please report log to http://www.github.com/shawnpringle/netaio or \n"&
-				"the EUForum http://www.openeuphoria.com/forum/index.wc", {})
-		end if
-		if not copy_file(InitialDir & SLASH & filesys:filebase(wxide_location) & "/bin/" & library, prefix & "/lib/" & library) then
-			die("Could not install %s into %s/lib", {library, prefix})
-		end if
-	end if
-end for
-if not copy_file(wxide_archive_base & "/bin/wxide.bin", prefix & "/bin/wxide") then
-	die("Unable to copy %s/bin/wxide.bin to %s/bin/wxide", {wxide_archive_base, prefix})
-end if
-s = execCommand("chmod 755 "& prefix &"/bin/wxide")
-integer wxide_last_slash = rfind( '/', wxide_location )
-integer wxide_dash_linux = match("-linux", wxide_location, wxide_last_slash )
-constant wxide_share_dest_dir = targetBaseDirectory & "/" & wxide_location[wxide_last_slash..wxide_dash_linux-1]
-create_directory(wxide_share_dest_dir & "/docs", 0t755, true)
-copy_file(wxide_archive_base & "/docs/docs.css", wxide_share_dest_dir & "/docs/docs.css")
-copy_file(wxide_archive_base & "/docs/wxide.html", wxide_share_dest_dir & "/docs/wxide.html")
-system("ln -s " & targetBaseDirectory & "/euphoria-common/include/wxeu " & wxide_share_dest_dir & "/include", 2)
-create_directory(targetBaseDirectory & "/euphoria-common/include/wxeu", 0t755)
-copy_file(wxide_archive_base & "/src/wxeu/wxeud.e", targetBaseDirectory & "/euphoria-common/include/wxeu/wxeud.e", true)
-system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/wxeu", 2)
-s = execCommand("ldconfig " & prefix & "/lib")
-if atom(s) then
-	logMsg("Could not execute ldconfig.")
-end if
-
---gtk---------------------------------------------------------
-----                                                      ----
-----                G     TTT  K  K                       ----
-----               G  GG   T   KKK                        ----
-----                GGG    T   K  K                       ----
---------------------------------------------------------------
-net_archive_name = "https://sites.google.com/site/euphoriagtk/EuGTK4.9.9.tar.gz"
-local_archive_name = "EuGTK4.9.9.tar.gz"
-if system_exec("tar xzf " & local_archive_name,2) and 
-	(system_exec("wget -c " & net_archive_name, 2) or system_exec("tar xzf " & local_archive_name,2)) then
-	die("Cannot download needed file : %s", {net_archive_name})
-end if
-system("mv demos ~",2)
-logMsg("installing EuGTK")
-constant gtk_es = dir(InitialDir & "/demos/Gtk*.e")
-if atom(gtk_es) then
-	die("Cannot list the gtk demos folder.", {})
-end if
--- gtk_es is a sequence
-create_directory(targetBaseDirectory & "/euphoria-common/include/gtk", 0t755, true)
-for i = 1 to length(gtk_es) do
-	copy_file(InitialDir & SLASH & "demos" & SLASH & gtk_es[i][D_NAME],
-		targetBaseDirectory & "/euphoria-common/include/gtk/" & gtk_es[i][D_NAME])
-end for
-create_directory(targetBaseDirectory & "/EuGTK4.9.9/documentation", 0t755, true)
-system("ln -s " & targetBaseDirectory & "/euphoria-common/include/gtk " & targetBaseDirectory & "/EuGTK4.9.9/include",2)
-constant html_files = dir(InitialDir & "/demos/documentation/*.*")
-for htmli = 1 to length(html_files) do
-	sequence html_file = html_files[htmli]
-	if find('d', html_file[D_ATTRIBUTES]) and html_file[D_NAME][1] != '.' then
-		die("Unhandled directory in GTK documentation.",{})
-	end if
-	copy_file(InitialDir & "/demos/documentation/" & html_file[D_NAME],
-		targetBaseDirectory & "/EuGTK4.9.9/documentation/" & html_file[D_NAME])
-end for
-
 --eu40--------------------------------------------------------
 ----                                                      ----
 ----              EEEE  U  U       4 4  000               ----
@@ -490,7 +393,7 @@ end if
 
 
 
-logMsg("Setting this version of Euphoria as the TIP of 4.0 with a symbolic link...")
+logMsg("Setting this version of Euphoria as 4.0 with a symbolic link...")
 delete_file(targetBaseDirectory & SLASH & "euphoria-4.0")
 if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0") then
 	if system_exec("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0") then
@@ -527,6 +430,103 @@ if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40",2) then
 end if
 
 
+--wxide-------------------------------------------------------
+----                                                      ----
+----              W     W X   X  III DDDD EEEE            ----
+----               W W W    X     I   D D EE              ----
+----                W W   X   X  III DDDD EEEE            ----
+--------------------------------------------------------------
+-- Get wxIDE
+if register_size = 32 then
+	net_archive_name = "http://downloads.sourceforge.net/project/wxeuphoria/wxIDE/v0.8.0/wxide-0.8.0-linux-x86.tgz"
+else
+	net_archive_name = "http://downloads.sourceforge.net/project/wxeuphoria/wxIDE/v0.8.0/wxide-0.8.0-linux-x86-64.tgz"
+end if
+local_archive_name = filesys:filename(net_archive_name)
+if system_exec("tar -xzf " & local_archive_name,2)
+	and
+	(system_exec("wget -c " & net_archive_name,2) and system_exec("tar -xzf " & local_archive_name,2)) then
+		die("Cannot download needed file : %s",{local_archive_name})
+end if
+logMsg("installing WXIDE") 
+constant wxide_archive_base = InitialDir & SLASH & filesys:filebase(wxide_location)
+-- intall wxeu binary wrapper
+-- check to make sure we have really installed ALL dependencies
+
+constant libraries = dir(wxide_archive_base & "/bin")
+for li = 1 to length(libraries) do
+	sequence library = libraries[li][D_NAME]
+	if match(".so.", library) then
+		s = execCommand(sprintf("ldd %s/bin/%s | grep -v /.* +=> /.*", {wxide_archive_base, library}))
+		if atom(s) then
+			continue
+		end if
+		if length(s) then
+			logMsg(s)
+			die("Missing library, please report log to http://www.github.com/shawnpringle/netaio or \n"&
+				"the EUForum http://www.openeuphoria.com/forum/index.wc", {})
+		end if
+		if not copy_file(InitialDir & SLASH & filesys:filebase(wxide_location) & "/bin/" & library, prefix & "/lib/" & library, 1) then
+			die("Could not install %s into %s/lib", {library, prefix})
+		end if
+	end if
+end for
+if not copy_file(wxide_archive_base & "/bin/wxide.bin", prefix & "/bin/wxide") then
+	die("Unable to copy %s/bin/wxide.bin to %s/bin/wxide", {wxide_archive_base, prefix})
+end if
+s = execCommand("chmod 755 "& prefix &"/bin/wxide")
+integer wxide_last_slash = rfind( '/', wxide_location )
+integer wxide_dash_linux = match("-linux", wxide_location, wxide_last_slash )
+constant wxide_share_dest_dir = targetBaseDirectory & "/" & wxide_location[wxide_last_slash..wxide_dash_linux-1]
+create_directory(wxide_share_dest_dir & "/docs", 0t755, true)
+copy_file(wxide_archive_base & "/docs/docs.css", wxide_share_dest_dir & "/docs/docs.css")
+copy_file(wxide_archive_base & "/docs/wxide.html", wxide_share_dest_dir & "/docs/wxide.html")
+system("ln -s " & targetBaseDirectory & "/euphoria-common/include/wxeu " & wxide_share_dest_dir & "/include", 2)
+create_directory(targetBaseDirectory & "/euphoria-common/include/wxeu", 0t755)
+copy_file(wxide_archive_base & "/src/wxeu/wxeud.e", targetBaseDirectory & "/euphoria-common/include/wxeu/wxeud.e", true)
+system("chmod a+rx " & targetBaseDirectory & "/euphoria-common/include/wxeu", 2)
+s = execCommand("ldconfig " & prefix & "/lib")
+if atom(s) then
+	logMsg("Could not execute ldconfig.")
+end if
+
+--gtk---------------------------------------------------------
+----                                                      ----
+----                G     TTT  K  K                       ----
+----               G  GG   T   KKK                        ----
+----                GGG    T   K  K                       ----
+--------------------------------------------------------------
+net_archive_name = "https://sites.google.com/site/euphoriagtk/EuGTK4.9.9.tar.gz"
+local_archive_name = "EuGTK4.9.9.tar.gz"
+if system_exec("tar xzf " & local_archive_name,2) and 
+	(system_exec("wget -c " & net_archive_name, 2) or system_exec("tar xzf " & local_archive_name,2)) then
+	die("Cannot download needed file : %s", {net_archive_name})
+end if
+system("mv demos ~",2)
+logMsg("installing EuGTK")
+constant gtk_es = dir(InitialDir & "/demos/Gtk*.e")
+if atom(gtk_es) then
+	die("Cannot list the gtk demos folder.", {})
+end if
+-- gtk_es is a sequence
+create_directory(targetBaseDirectory & "/euphoria-common/include/gtk", 0t755, true)
+for i = 1 to length(gtk_es) do
+	copy_file(InitialDir & SLASH & "demos" & SLASH & gtk_es[i][D_NAME],
+		targetBaseDirectory & "/euphoria-common/include/gtk/" & gtk_es[i][D_NAME])
+end for
+create_directory(targetBaseDirectory & "/EuGTK4.9.9/documentation", 0t755, true)
+system("ln -s " & targetBaseDirectory & "/euphoria-common/include/gtk " & targetBaseDirectory & "/EuGTK4.9.9/include",2)
+constant html_files = dir(InitialDir & "/demos/documentation/*.*")
+for htmli = 1 to length(html_files) do
+	sequence html_file = html_files[htmli]
+	if find('d', html_file[D_ATTRIBUTES]) and html_file[D_NAME][1] != '.' then
+		die("Unhandled directory in GTK documentation.",{})
+	end if
+	copy_file(InitialDir & "/demos/documentation/" & html_file[D_NAME],
+		targetBaseDirectory & "/EuGTK4.9.9/documentation/" & html_file[D_NAME])
+end for
+
+
 --logMsg("Copying libraries and binaries...")
 move_file(targetBaseDirectory & "/euphoria-4.1/include/myLibs", targetBaseDirectory & "/euphoria-common/include/myLibs")
 move_file(targetBaseDirectory & "/euphoria-4.1/include/euslibs", targetBaseDirectory & "/euphoria-common/include/euslibs")
@@ -540,7 +540,7 @@ The installation is now complete.  You can open the documentation for Euphoria 4
 You can open the documentation for Euphoria 4.1 at:
    file://%s/euphoria-4.1/docs/html/index.html
 You can open the EuGtk documentation at:
-   file://%s/EuGTK4.9.9/documentation/
+   file://%s/EuGTK4.9.9/documentation/README.html
 You can open the WXIDE documentation at:
    file://%s/wxide-0.8.0/docs/wxide.html
 """, repeat(targetBaseDirectory, 4))
