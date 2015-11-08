@@ -355,41 +355,41 @@ end if
 
 
 if eu40revision_is_tip then
-logMsg("Setting this version of Euphoria as the TIP of 4.0 with a symbolic link...")
-delete_file(targetBaseDirectory & SLASH & "euphoria-4.0-tip")
-if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
-	if system_exec("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
-		logMsg("ln : Cannot produce symlink")
-		abort(1)
+	logMsg("Setting this version of Euphoria as the TIP of 4.0 with a symbolic link...")
+	delete_file(targetBaseDirectory & SLASH & "euphoria-4.0-tip")
+	if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
+		if system_exec("ln -s " & targetDirectory & " " & targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
+			logMsg("ln : Cannot produce symlink")
+			abort(1)
+		end if
+	else
+		logMsg("euphoria-4.0-tip link already exists.")
 	end if
-else
-	logMsg("euphoria-4.0-tip link already exists.")
-end if
-logMsg("Creating shortcut scripts for 4.0...")
-fb = open(SLASH & prefix & "/bin/eui40tip", "w")
-if fb = -1 then
-	die("Cannot create eui40tip",{})
-end if
-puts(fb,
-	"#!/bin/sh\n"&
-	targetBaseDirectory & "/euphoria-4.0-tip/bin/eui $@\n"
-	)
-close(fb)
-
-fb = open(prefix & "/bin/euc40tip", "w")
-if fb = -1 then
-    die("Cannot create euc40tip",{})
-end if
-puts(fb,
-	"#!/bin/sh\n"&
-	targetBaseDirectory & "/euphoria-4.0-tip/bin/euc $@\n"
-	)
-close(fb)
-
-logMsg("setting execution bits on shortcuts")
-if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) then
-	logMsg("unable to set execute permission on all shortcuts")
-end if
+	logMsg("Creating shortcut scripts for 4.0...")
+	fb = open(SLASH & prefix & "/bin/eui40tip", "w")
+	if fb = -1 then
+		die("Cannot create eui40tip",{})
+	end if
+	puts(fb,
+		"#!/bin/sh\n"&
+		targetBaseDirectory & "/euphoria-4.0-tip/bin/eui $@\n"
+		)
+	close(fb)
+	
+	fb = open(prefix & "/bin/euc40tip", "w")
+	if fb = -1 then
+		die("Cannot create euc40tip",{})
+	end if
+	puts(fb,
+		"#!/bin/sh\n"&
+		targetBaseDirectory & "/euphoria-4.0-tip/bin/euc $@\n"
+		)
+	close(fb)
+	
+	logMsg("setting execution bits on shortcuts")
+	if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) then
+		logMsg("unable to set execute permission on all shortcuts")
+	end if
 
 end if
 
@@ -544,4 +544,7 @@ You can open the EuGtk documentation at:
    file://%s/EuGTK4.9.9/documentation/README.html
 You can open the WXIDE documentation at:
    file://%s/wxide-0.8.0/docs/wxide.html
-""", repeat(targetBaseDirectory, 4))
+
+For an introduction to Euphoria in general see: file://%s/euphoria-4.0/docs/euphoria/html/intro.html
+
+""", repeat(targetBaseDirectory, 5))
