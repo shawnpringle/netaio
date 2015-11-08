@@ -16,4 +16,5 @@ euphoria-$(EU41REV).tar : makearchive.ex $(EU41DEV)
 	
 revisions.e : revisions.GNUmake GNUmakefile
 	echo 'public constant eu40revision = "'$(EU40REV)'", eu41revision = "'$(EU41REV)'"' | tee revisions.e
-	
+	echo 'public constant eu40revision_is_tip = ' `eui -i /usr/local/share/euphoria-common/include istip.ex $(EU40DEV) 4.0 $(EU40REV)` >> revisions.e
+

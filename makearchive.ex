@@ -106,6 +106,13 @@ function program_exists(sequence program_name)
 	return not equal(locate_file(program_name, getenv("PATH")), program_name)
 end function
 
+function bobslash(sequence s)
+	if length(s) and equal(s[$], '/') then
+		s = s[1..$-1]
+	end if
+	return s
+end function
+
 
 ------------------------------------------------------------------------------
 
@@ -177,7 +184,7 @@ if not file_exists(source_directory & "/source/build/eui") then
 	system("make all",2)
 end if
 if install_docs then
-	system("make htmldoc", 2)
+	--system("make htmldoc", 2)
 	if program_exists("pdflatex") then
 		system("make pdfdoc",2)
 	else
@@ -199,19 +206,15 @@ end function
 sequence euphoria_revision = get_revision_string()
 printf(io:STDERR, "Detected version string is %s\n", {euphoria_revision})
 
-function bobslash(sequence s)
-	if length(s) and equal(s[$], '/') then
-		s = s[1..$-1]
-	end if
-	return s
-end function
-
 constant euphoria_versioned_directory = sprintf("share/euphoria-%s", {euphoria_revision})                       
 constant euphoria_directory           = "share/euphoria"
 create_directory(install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory,0t755,true)
 system("ln -s " & install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory & SLASH &
 	"  " & install_root & SLASH & install_prefix & SLASH & euphoria_directory,2)
+install_make("install-docs")
 install_make("install")
+system("mv " & install_root & SLASH & install_prefix & SLASH & "share/doc/euphoria " & install_root & SLASH & install_prefix & SLASH & euphoria_versioned_directory & "/docs")
+
 delete_file(install_root & SLASH & install_prefix & SLASH & euphoria_directory)
 
 constant bin_dir = euphoria_versioned_directory & "/bin"

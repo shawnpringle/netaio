@@ -297,7 +297,7 @@ else
 		logMsg("configuration file cannot be created.")
 		abort(1)
 	end if
-	printf(fcfg, eucfgf[2], register_size & {prefix} & repeat(targetDirectory,6))
+	printf(fcfg, eucfgf[2], register_size & {targetDirectory, targetBaseDirectory} & repeat(targetDirectory,5))
 end if
 
 system(sprintf("ln -s %s/euphoria-%s %s/euphoria-4.1", {targetBaseDirectory, eu41revision, targetBaseDirectory}))
@@ -350,11 +350,11 @@ if not file_exists(targetDirectory) then
 		logMsg(sprintf("configuration file \'%s\' cannot be created.",{targetDirectory&SLASH&"bin/eu.cfg"}))
 		abort(1)
 	end if
-	printf(fcfg, eucfgf[1], register_size & {prefix} & repeat(targetDirectory,5))
+	printf(fcfg, eucfgf[1], register_size & {targetDirectory, targetBaseDirectory} & repeat(targetDirectory,4))
 end if
 
 
-
+if eu40revision_is_tip then
 logMsg("Setting this version of Euphoria as the TIP of 4.0 with a symbolic link...")
 delete_file(targetBaseDirectory & SLASH & "euphoria-4.0-tip")
 if not file_exists(targetBaseDirectory & SLASH & "euphoria-4.0-tip") then
@@ -391,6 +391,7 @@ if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]40tip",2) then
 	logMsg("unable to set execute permission on all shortcuts")
 end if
 
+end if
 
 
 logMsg("Setting this version of Euphoria as 4.0 with a symbolic link...")
