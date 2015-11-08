@@ -1,8 +1,8 @@
 include myLibs/common.e
 include std/regex.e
 
-constant pattern = regex:new("""changeset:   \d+:([0-9a-f]+)
-branch:      ([_a-z0-9.-]+)""", MULTILINE & DOTALL)
+constant pattern = regex:new("""changeset:   \d+:(?<changeset>[0-9a-f]+)
+branch:      (?<branch>[_a-z0-9.-]+)""", MULTILINE & DOTALL)
 
 sequence arguments = command_line()
 sequence location = arguments[3]
