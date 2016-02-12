@@ -171,7 +171,14 @@ function include_lines(sequence file_name, sequence lines_to_include)
 end function
 
 procedure cmdl_help()
-	die("Usage : %s %s [ -n ] [ -p /usr/local ] [ -4 ] [ -8 ]", cmd[1..2])
+	die("Usage : %s %s [ -n ] [ -p /usr/local ] [ -4 ] [ -8 ] [ -0 ] [ -1 ]\n" & 
+		" -n      : dry-run (installs with non privledged user, sets prefix to /tmp/test-install\n" &
+		" -p path : sets the prefix to path\n" &
+		" -4      : sets binary required setting to 32 bits\n" &
+		" -8      : sets binary required setting to 64 bits\n" &
+		" -0      : sets the default Euphoria to Euphoria 4.0\n" &
+		" -1      : sets the default Euphoria to Euphoria 4.1\n"
+	, cmd[1..2])
 end procedure
 
 include std/net/url.e
@@ -466,7 +473,7 @@ for cmdi = 3 to length(cmd) do
 				case '1' then
 					default_euphoria = "4.1"
 				case else
-					printf(io:STDERR, "Invalid option -%s", {opt})
+					printf(io:STDERR, "Invalid option -%s\n", {opt})
 					cmdl_help()
 					abort(1)
 			end switch
