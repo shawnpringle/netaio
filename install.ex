@@ -564,11 +564,6 @@ proper_filename targetDirectory, net_archive_name, local_archive_name
 proper_filename  archive_version
 
 --eu41--------------------------------------------------------
-----                                                      ----
-----              EEEE  U  U       4 4  1                 ----
-----              EE    U  U       444  1                 ----
-----              EEEE  UUUU         4  1                 ----
---------------------------------------------------------------
 constant aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 -- Get eu41.tgz
 net_archive_name = sprintf(aio_archive_format, {register_size})
@@ -631,23 +626,12 @@ logMsg("Setting this Euphoria 4.1 version to to be eui41 euc41 etc...")
 create_symlink(targetBaseDirectory & "/euphoria-4.1", targetBaseDirectory & "/euphoria")
 
 --eu40--------------------------------------------------------
-----                                                      ----
-----              EEEE  U  U       4 4  000               ----
-----              EE    U  U       444  0 0               ----
-----              EEEE  UUUU         4  000               ----
---------------------------------------------------------------
 if download_install_40tip_fails() then
 	logMsg("Install of 4.0 tip has failed.  Please contact Shawn Pringle <shawn.pringle@gmail.com>")
 	abort(1)
 end if
 
 --wxide-------------------------------------------------------
-----                                                      ----
-----              W     W X   X  III DDDD EEEE            ----
-----               W W W    X     I   D D EE              ----
-----                W W   X   X  III DDDD EEEE            ----
---------------------------------------------------------------
--- Get wxIDE
 archive_version = "0.8.0"
 constant wxide_version = archive_version, wxide_archive_version = wxide_version
 if register_size = 32 then
@@ -711,11 +695,6 @@ end type
 truth_type truth
 
 --gtk---------------------------------------------------------
-----                                                      ----
-----                G     TTT  K  K                       ----
-----               G  GG   true   KKK                        ----
-----                GGG    true   K  K                       ----
---------------------------------------------------------------
 net_archive_name = gtk3_location
 local_archive_name = filesys:filename(net_archive_name) -- "EuGTK4.11.3.tar.gz"
 archive_version = gtk3_location[gtk3_offsets[1][1]..gtk3_offsets[1][2]]
