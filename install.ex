@@ -22,7 +22,7 @@ enum type boolean true, false=0 end type
 constant bintar40_url = "http://rapideuphoria.com/a946f8564442.tar.xz"
 integer test_frequency = DAYS
 constant old_aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
-constant gtk3_location    = "https://sites.google.com/site/euphoriagtk/EuGTK4.11.3.tar.gz" 
+constant gtk3_location    = "https://sites.google.com/site/euphoriagtk/EuGTK4.11.5.tar.gz" 
 type proper_filename(sequence s)
 	for i = 1 to length(s) do
 		if find(s[i]," {}[]|><'*?\\\"") then
