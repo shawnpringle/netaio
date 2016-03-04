@@ -23,7 +23,7 @@ copy of install.ex.
 
 The installer is to be run as root on Debian-based systems (compiled on Linux Mint 17.0 32-bit).
 
-Usage: `install \[`-0`\] \[`-1`\] \[`-4`\] \[`-8`\] \[`-n`\] \[`-p/usr/bin`\]`
+Usage: `install` \[`-0`\] \[`-1`\] \[`-4`\] \[`-8`\] \[`-n`\] \[`-p/usr/bin`\]
 
 If no target directory is specified, OpenEuphoria will be installed in /usr/local/euphoria-4.1.0.
 
