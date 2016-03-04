@@ -265,18 +265,17 @@ function download_install_40tip_fails()
 	end if
 	-- download if we do not have it or if what we have is older than one day.  The following file name is often tip.tar.bz2 but it isn't always that.
 	sequence bzip2_filename = filesys:filename(bzip2_url[1])
-	object bzip2_file_list = dir(filesys:filename(bzip2_url[1]))
-	boolean download = atom(bzip2_file_list) 
+	object bzip2_file_list = dir(bzip2_filename)
+	boolean download = atom(bzip2_file_list)
 	if not download then
 		download = file_age(bzip2_file_list[1], DAYS) > 1
 	end if
 	if download then
-		void( delete_file(bzip2_file_list[1][D_NAME]) )
+		void( delete_file(bzip2_filename) )
 	end if
-	if download
-		or system_exec("tar -xjf " & bzip2_filename & " -C " & work_dir,2) != 0 then
-			void( wget(bzip2_url[1]) )
-        	void( system_exec("tar -xjf " & bzip2_filename & " -C " & work_dir,2) )
+	if (download or system_exec("tar -xjf " & bzip2_filename & " -C " & work_dir,2) != 0) and 
+		(atom( wget(bzip2_url[1]) ) or system_exec("tar -xjf " & bzip2_filename & " -C " & work_dir,2) != 0) then
+		return true
 	end if
 	
 	-- Now extract what was downloaded to work_dir ... /euphria-changeset/
@@ -568,9 +567,9 @@ constant aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz
 -- Get eu41.tgz
 net_archive_name = sprintf(aio_archive_format, {register_size})
 local_archive_name = filesys:filename(net_archive_name)
-if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2)
+if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0
 	and
-	(sequence(wget(net_archive_name)) and system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2)) then
+	(atom(wget(net_archive_name)) or system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0) then
 		die("Cannot download needed file : " & aio_archive_format,{register_size})
 end if
 
@@ -640,9 +639,9 @@ else
 	net_archive_name = "http://downloads.sourceforge.net/project/wxeuphoria/wxIDE/v0.8.0/wxide-0.8.0-linux-x86-64.tgz"
 end if
 local_archive_name = filesys:filename(net_archive_name)
-if system_exec("tar -xzf " & local_archive_name,2)
+if system_exec("tar -xzf " & local_archive_name,2) != 0
 	and
-	(sequence(wget(net_archive_name)) and system_exec("tar -xzf " & local_archive_name,2)) then
+	(atom(wget(net_archive_name)) or system_exec("tar -xzf " & local_archive_name,2) != 0) then
 		die("Cannot download needed file : %s",{local_archive_name})
 end if
 logMsg("installing WXIDE") 
@@ -700,7 +699,7 @@ local_archive_name = filesys:filename(net_archive_name) -- "EuGTK4.11.3.tar.gz"
 archive_version = gtk3_location[gtk3_offsets[1][1]..gtk3_offsets[1][2]]
 constant gtk_archive_version = archive_version
 if system_exec("tar xzf " & local_archive_name,2) != 0 and 
-	(sequence(wget(net_archive_name)) or system_exec("tar xzf " & local_archive_name,2)) != 0 then
+	(atom(wget(net_archive_name)) or system_exec("tar xzf " & local_archive_name,2)) != 0 then
 	die("Cannot download needed file : %s", {net_archive_name})
 end if
 logMsg("installing EuGTK")
