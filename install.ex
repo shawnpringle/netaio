@@ -16,10 +16,13 @@ include std/os.e
 include revisions.e
 include std/regex.e
 include std/datetime.e
+include std/text.e
+include aio.e
+
 constant version_pattern = regex:new("(\\d+\\.)*\\d+")
 constant work_dir = "/tmp/aio"
 enum type boolean true, false=0 end type
-constant bintar40_url = "http://rapideuphoria.com/a946f8564442.tar.xz"
+
 integer test_frequency = DAYS
 constant old_aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 constant gtk3_location    = "https://sites.google.com/site/euphoriagtk/EuGTK4.11.5.tar.gz" 
@@ -248,9 +251,27 @@ function get_content_url(sequence url, sequence link_labels, interval_unit unit 
 	return out
 end function
 
+-- download a tar ball at a location and extract it.  If the file is already downloaded, don't download extract only
+-- return false on success and true on failure.
+function untar(sequence url, sequence d = ".")
+	sequence n = filesys:filename(url)
+	if file_exists(n) and system_exec("tar xf " & n & " -C "& d, 2) = 0 then
+	       return false
+	else
+	       if atom(wget(url)) then
+			-- stuck return failure
+			return true
+		end if
+	end if
+	-- file must exist now and be whole, but not extracted
+	return system_exec("tar xf " & n & "-C " & d,2)
+end function
+
+with trace
 -- Create a very up to date Euphoria 4.0 install
 -- This routine downloads the a fixed set of binaries which are updated monthly from The Rapid Euphoria Archive and the rest is the latest sources.  Together these components make an install whose includes, and sources are to the day new and the binaries are to the month new.  The binaries URL must be updated each time the binaries are updated but the sources are dynamically chosen to be the newest in the 4.0 branch.
 function download_install_40tip_fails()
+	sequence euphoria_directory_name
 	delete_file(work_dir)
 	create_directory(work_dir)
 	-- get URL of the page of the tip of the 4.0 branch from the repository
@@ -284,7 +305,7 @@ function download_install_40tip_fails()
 		return true
 	end if
 	integer nl_loc = find(10, listing)
-	sequence euphoria_directory_name = listing[1..nl_loc-1]
+	euphoria_directory_name = listing[1..nl_loc-1]
 	integer sl_loc = find('/', listing)
 	if sl_loc != 0 then
 		euphoria_directory_name = euphoria_directory_name[1..sl_loc-1]
@@ -298,17 +319,21 @@ function download_install_40tip_fails()
 	create_symlink(prefix & "/share/" & euphoria_directory_name, prefix & "/share/euphoria" )
 	create_directory(prefix & "/share/" & euphoria_directory_name)
 	
-	sequence bintar_name = filesys:filename(bintar40_url)
-	if not file_exists(bintar_name) then 
-		void( wget(bintar40_url) )
-	end if
-	system("tar xf " & bintar_name & " -C " & work_dir & "/" & euphoria_directory_name & "/source", 2)
-	
 	sequence save_dir = current_dir()
-	chdir(work_dir & '/' & euphoria_directory_name & "/source")
+
+	if untar(  eubintar40_url, work_dir & "/" & euphoria_directory_name & "/source"  ) then
+		return true
+	end if
+		
+	if untar( eudoctar40_url, work_dir & "/" & euphoria_directory_name & "/source") then
+		return true
+	end if
+	
+	chdir(work_dir & "/" & euphoria_directory_name & "/source")
 	create_directory(prefix & "/share/euphoria/lib")
-	system("sh configure --without-euphoria  --prefix " & prefix, 2)
-	system("make -k install", 2)
+	system("sh configure --prefix " & prefix, 2)
+	create_directory(prefix & "/share/" & euphoria_directory_name & "/bin")
+	system("make install", 2)
 	-- the user doesn't need this
 	delete_file(prefix & "/bin/" & "buildcpdb.ex")
 	-- nor this
@@ -331,14 +356,44 @@ function download_install_40tip_fails()
 		start_letter = find(0, bin_files = ' ', sp_loc)
 		until sp_loc > length(bin_files)
 	end loop
+	
+	delete_file(prefix & "/doc/euphoria")
+	remove_directory(prefix & "/doc/euphoria", true)
+	
+	object pdflist = dir(work_dir & "/" & euphoria_directory_name & "/source/build/euphoria.pdf")
+	if atom(pdflist) then
+		write_file(work_dir & "/" & euphoria_directory_name & "/source/build/euphoria.pdf", "")
+	else
+		if pdflist[1][D_SIZE] = 0 then
+		        pdflist = -1
+		end if
+	end if
 
-	integer fcfg = open(prefix & "/share/euphoria/bin/eu.cfg", "w", true)
+	puts(2, work_dir & "/" & euphoria_directory_name & "/source/build/html")
+	if file_exists(work_dir & "/" & euphoria_directory_name & "/source/build/html") then
+		system("make install-docs", 2)
+		object error_report_list = dir(work_dir & "/" &  euphoria_directory_name & "/source/build/*.html")
+		if sequence(error_report_list) then
+			copy_file(work_dir & "/" & euphoria_directory_name & "/source/build/" & error_report_list[1][D_NAME], 
+				prefix & "/share/doc/euphoria/" &  error_report_list[1][D_NAME])
+		end if
+		remove_directory(prefix & "/share/euphoria/doc", true)
+		move_file(prefix & "/share/doc/euphoria", prefix & "/share/euphoria/doc")
+		if  atom(pdflist) then
+			delete_file(prefix & "/share/euphoria/doc/euphoria.pdf")
+		end if
+	end if
+	
+	-- create_symlink(prefix & "/share/euphoria/doc", prefix & "/share/doc/" & euphoria_directory_name)
+
+	atom fcfg = open(prefix & "/share/euphoria/bin/eu.cfg", "w", true)
 	if fcfg = -1 then
 		logMsg(sprintf("configuration file \'%s\' cannot be created.",{prefix & "/share/euphoria/bin/eu.cfg"}))
 		return true
 	end if
 	printf(fcfg, eucfgf[1], 32 & {prefix & "/share/" & euphoria_directory_name, prefix & "/share/"} & repeat(prefix & "/share/" & euphoria_directory_name,4))
 	
+	create_symlink(prefix & "/share/euphoria/doc", prefix & "/share/euphoria/docs")
 	-- moving to make these into symlinks.	
 	-- It is convenient for users who want to secify -eudbg to have it in /usr/local/lib
 	system("ranlib " & prefix & "/lib/eu.a " & prefix & "/lib/eudbg.a",2)
@@ -552,12 +607,16 @@ logMsg("Adding common directories for both versions of Euphoria")
 sequence targetBaseDirectory = prefix & "/share"
 create_directory(targetBaseDirectory & "/euphoria-common/include", 0t755, true)
 create_directory(prefix & "/bin", 0t755, true)
-sequence eubins = {"eui", "euc", "creole", "eubind", "eudis", "eudist", "eudoc", "euloc", "eushroud", "eutest"}
+sequence eubins = {"eui", "euc", "eubind", "eushroud", "eudis", "eub", "eucoverage", "eudist", "eutest"}
 for i = 1 to length(eubins) do
 	sequence eubin = eubins[i]
 	create_symlink(targetBaseDirectory & "/euphoria/bin/" & eubin, prefix & "/bin/" & eubin)
 end for
-
+sequence extras = {  "creole", "eudoc", "euloc" }
+for i = 1 to length(extras) do
+	sequence eubin = extras[i]
+	create_symlink(targetBaseDirectory & "/euphoria-4.1/bin/" & eubin, prefix & "/bin/" & eubin)
+end for
 atom fb, fcfg
 proper_filename targetDirectory, net_archive_name, local_archive_name
 proper_filename  archive_version

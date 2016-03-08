@@ -1,0 +1,2 @@
+#!/bin/sh
+/home/alumno/euphoria/source/build/eui -i /home/alumno/euphoria/include -i /home/alumno/euphoria/include/ -i /usr/local/share/euphoria-common/include/  makearchives.ex -d euphoria
