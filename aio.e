@@ -15,4 +15,4 @@ end function
 
 
 public constant eubintar40_url = "http://rapideuphoria.com/eubin40tip-" & lower(platform_name()) & ".tar.xz"
-public constant eudoctar40_url = "http://rapideuphoria.com/eudoc40tip.tar"
+public constant eudoctar40_url = "http://rapideuphoria.com/eudoc40tip.tar.xz"
