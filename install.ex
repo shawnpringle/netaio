@@ -264,7 +264,7 @@ function untar(sequence url, sequence d = ".")
 		end if
 	end if
 	-- file must exist now and be whole, but not extracted
-	return system_exec("tar xf " & n & "-C " & d,2)
+	return system_exec("tar xf " & n & " -C " & d,2)
 end function
 
 with trace
@@ -273,7 +273,7 @@ with trace
 function download_install_40tip_fails()
 	sequence euphoria_directory_name
 	delete_file(work_dir)
-	create_directory(work_dir)
+	create_directory(work_dir, 0t755)
 	-- get URL of the page of the tip of the 4.0 branch from the repository
 	object four_url = get_content_url("http://scm.openeuphoria.org/hg/euphoria/branches", {"4.0"})
 	if atom(four_url) then
@@ -317,7 +317,8 @@ function download_install_40tip_fails()
 	sequence euphoria_version = euphoria_directory_name[dash_loc+1..$]
 	delete_file(prefix & "/share/euphoria")
 	create_symlink(prefix & "/share/" & euphoria_directory_name, prefix & "/share/euphoria" )
-	create_directory(prefix & "/share/" & euphoria_directory_name)
+	remove_directory(prefix & "/share/" & euphoria_directory_name, true)
+	create_directory(prefix & "/share/" & euphoria_directory_name, 0t755)
 	
 	sequence save_dir = current_dir()
 
@@ -330,9 +331,9 @@ function download_install_40tip_fails()
 	end if
 	
 	chdir(work_dir & "/" & euphoria_directory_name & "/source")
-	create_directory(prefix & "/share/euphoria/lib")
+	create_directory(prefix & "/share/euphoria/lib", 0t755)
 	system("sh configure --prefix " & prefix, 2)
-	create_directory(prefix & "/share/" & euphoria_directory_name & "/bin")
+	create_directory(prefix & "/share/" & euphoria_directory_name & "/bin", 0t755)
 	system("make install", 2)
 	-- the user doesn't need this
 	delete_file(prefix & "/bin/" & "buildcpdb.ex")
@@ -568,7 +569,7 @@ if length(default_euphoria) = 0 then
 		display("Enter 4.0 or 4.1")
 	entry
 		default_euphoria = prompt_string("Choose default EUPHORIA for your system.  eui can mean eui40 or eui41 you can always call with "
-		& "eui40 or eui41 if you want to use something other than your default.")
+		& "eui40 or eui41 if you want to use something other than your default.  \nEnter the default version (4.0 or 4.1) :")
 	end while
 end if
 
@@ -621,10 +622,10 @@ atom fb, fcfg
 proper_filename targetDirectory, net_archive_name, local_archive_name
 proper_filename  archive_version
 
---eu41--------------------------------------------------------
 constant aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 -- Get eu41.tgz
-net_archive_name = sprintf(aio_archive_format, {register_size})
+function download_install_41_bundle_fails()
+proper_filename net_archive_name = sprintf(aio_archive_format, {register_size}),
 local_archive_name = filesys:filename(net_archive_name)
 if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0
 	and
@@ -682,6 +683,14 @@ if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]41",2) then
 end if
 logMsg("Setting this Euphoria 4.1 version to to be eui41 euc41 etc...")
 create_symlink(targetBaseDirectory & "/euphoria-4.1", targetBaseDirectory & "/euphoria")
+	return false
+end function
+
+--eu41--------------------------------------------------------
+if download_install_41_bundle_fails() then
+        logMsg("Install of 4.1 with bundle has failed.  Please contact Shawn Pringle <shawn.pringle@gmail.com>")
+        abort(1)
+end if
 
 --eu40--------------------------------------------------------
 if download_install_40tip_fails() then
