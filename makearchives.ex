@@ -59,13 +59,13 @@ if atom(testlogs) then
     move_file("build/test-report.html", "build/" & changeset & ".html")
 end if
 
-system("tar -cf " & destination & "/" & filename(eubintar40_url) & "  build/" & changeset & ".html " & `build/eubind build/eudis build/eub build/eushroud build/eutest build/ecp.dat build/eu.a build/euc build/eudbg.a build/eui build/eudist build/eucoverage`)
+system("tar -cf " & destination & "/" & filebase(eubintar40_url) & "  build/" & changeset & ".html " & `build/eubind build/eudis build/eub build/eushroud build/eutest build/ecp.dat build/eu.a build/euc build/eudbg.a build/eui build/eudist build/eucoverage`)
 
-system("tar -cf " & destination & "/" & filename(eudoctar40_url) & " build/html/* build/html/*/*",2)
+system("tar -cf " & destination & "/" & filebase(eudoctar40_url) & " build/html/* build/html/*/*",2)
 
 chdir(destination)
-delete_file("eubin40tip-linux.tar.xz")
-system("xz -9 eubin40tip-linux.tar", 2)
+delete_file(filename(eubintar40_url))
+system("xz -9 " & filebase(eubintar40_url), 2)
 
-delete_file("eudoc40tip.tar.xz")
-system("xz -9 eudoc40tip.tar")
+delete_file(filename(eudoctar40_url))
+system("xz -9 " & filebase(eudoctar40_url), 2)
