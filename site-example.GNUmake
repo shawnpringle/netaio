@@ -1,0 +1,3 @@
+# Copy this file to site.GNUmake and set these according to checkout locations of Euphoria 4.0 and Euphoria 4.1. 
+EU40DEV=/home/user/euphoria-4.0
+EU41DEV=/home/user/euphoria-4.1
