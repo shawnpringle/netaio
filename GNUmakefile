@@ -2,13 +2,13 @@ include revisions.GNUmake
 include site.GNUmake
 
 install_AIO2.tgz : dependencies.txt README.md install.ex aio.e install GNUmakefile revisions.GNUmake revisions.e makearchives.ex
-	tar -czf install_AIO2.tgz install dependencies.txt README.md aio.e install.ex GNUmakefile revisions.GNUmake revisions.e makearchives.ex
+	tar -czf install_AIO2.tgz install dependencies.txt README.md aio.e install.ex GNUmakefile revisions.GNUmake revisions.e makearchives.ex site-example.GNUmake
 
 install : revisions.e install.ex
 	euc install.ex
 	strip install
 	
-eubin40tip-linux.tar eudoc40tip.tar : $(wildcard $(EU40DEV)/build/*) $(wildcard $(EU40DEV)/build/html/*) $(wildcard $(EU40DEV)/build/html/js/*)  $(wildcard $(EU40DEV)/build/html/images/*) site.GNUmake
+eubin40tip-linux.tar eudoc40tip.tar : $(wildcard $(EU40DEV)/build/*) $(wildcard $(EU40DEV)/build/html/*) $(wildcard $(EU40DEV)/build/html/js/*)  $(wildcard $(EU40DEV)/build/html/images/*) | site.GNUmake
 	eui makearchives.ex -d $(EU40DEV)
 	
 eubin40tip-linux.tar.xz : eubin40tip-linux.tar
