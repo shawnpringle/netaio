@@ -23,7 +23,6 @@ constant version_pattern = regex:new("(\\d+\\.)*\\d+")
 constant work_dir = "/tmp/aio"
 enum type boolean true, false=0 end type
 
-integer test_frequency = DAYS
 constant old_aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 constant gtk3_location    = "https://sites.google.com/site/euphoriagtk/EuGTK4.11.5.tar.gz" 
 type proper_filename(sequence s)
@@ -151,7 +150,7 @@ end function
  
 ------------------------------------------------------------------------------ 
  
-procedure installIfNot(sequence package) 
+procedure installIfNot(sequence package)
   if isInstalled(package) then 
     logMsg(package & " already installed") 
   else 
@@ -267,7 +266,6 @@ function untar(sequence url, sequence d = ".")
 	return system_exec("tar xf " & n & " -C " & d,2)
 end function
 
-with trace
 -- Create a very up to date Euphoria 4.0 install
 -- This routine downloads the a fixed set of binaries which are updated monthly from The Rapid Euphoria Archive and the rest is the latest sources.  Together these components make an install whose includes, and sources are to the day new and the binaries are to the month new.  The binaries URL must be updated each time the binaries are updated but the sources are dynamically chosen to be the newest in the 4.0 branch.
 function download_install_40tip_fails()
@@ -483,7 +481,70 @@ function download_install_40tip_fails()
 	chdir(save_dir)
 	return false
 end function
+
+constant aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
+function download_install_41_bundle_fails()
+	proper_filename net_archive_name = sprintf(aio_archive_format, {register_size}),
+	local_archive_name = filesys:filename(net_archive_name)
+	if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0
+		and
+		(atom(wget(net_archive_name)) or system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0) then
+			die("Cannot download needed file : " & aio_archive_format,{register_size})
+	end if
 	
+	targetDirectory = targetBaseDirectory & "/euphoria-" & eu41revision
+	
+	if file_exists(targetDirectory) then
+		logMsg(sprintf("Something already exists at \'%s\'.\nReinstalling....", {targetDirectory}))
+		remove_directory(targetDirectory, true)
+	end if
+	logMsg("installing OpenEuphoria 4.1") 
+	if not create_directory(targetDirectory, 0t755) then
+		logMsg(sprintf("Cannot create directory \'%s\'", {targetDirectory}))  	
+		abort(1)
+	end if
+	if system_exec("tar -xf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory,2) then
+		logMsg("unable to run tar")
+		abort(1)
+	end if
+	fcfg = open(targetDirectory&SLASH&"bin"&SLASH&"eu.cfg", "w")
+	if fcfg = -1 then
+		logMsg("configuration file cannot be created.")
+		abort(1)
+	end if
+	printf(fcfg, eucfgf[2], register_size & {targetDirectory, targetBaseDirectory} & repeat(targetDirectory,5))
+	
+	create_symlink(targetBaseDirectory & "/euphoria-" & eu41revision, targetBaseDirectory & "/euphoria-4.1")
+	
+	logMsg("Creating shortcut scripts for 4.1")
+	create_directory(prefix & "/bin", 0t755)
+	fb = open(prefix & "/bin/eui41", "w")
+	if fb = -1 then
+		die("Cannot create %s/bin/euc41",{prefix})
+	end if
+	puts(fb,
+		"#!/bin/sh\n"&
+		targetBaseDirectory & "/euphoria-4.1/bin/eui $@\n"
+		)
+	close(fb)
+	
+	fb = open(prefix & "/bin/euc41", "w")
+	if fb = -1 then
+		die("Cannot create euc41",{})
+	end if
+	puts(fb,
+		"#!/bin/sh\n"&
+		targetBaseDirectory & "/euphoria-4.1/bin/euc $@\n"
+		)
+	close(fb)
+	if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]41",2) then
+		die("unable to set execute permission on all shortcuts", {})
+	end if
+	logMsg("Setting this Euphoria 4.1 version to to be eui41 euc41 etc...")
+	create_symlink(targetBaseDirectory & "/euphoria-4.1", targetBaseDirectory & "/euphoria")
+		return false
+end function
+
 ------------------------------------------------------------------------------ 
 register_size = 0
 sequence default_euphoria = ""
@@ -622,69 +683,7 @@ atom fb, fcfg
 proper_filename targetDirectory, net_archive_name, local_archive_name
 proper_filename  archive_version
 
-constant aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 -- Get eu41.tgz
-function download_install_41_bundle_fails()
-proper_filename net_archive_name = sprintf(aio_archive_format, {register_size}),
-local_archive_name = filesys:filename(net_archive_name)
-if system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0
-	and
-	(atom(wget(net_archive_name)) or system_exec("tar -xzf " & local_archive_name & " eu41.tgz",2) != 0) then
-		die("Cannot download needed file : " & aio_archive_format,{register_size})
-end if
-
-targetDirectory = targetBaseDirectory & "/euphoria-" & eu41revision
-
-if file_exists(targetDirectory) then
-	logMsg(sprintf("Something already exists at \'%s\'.\nReinstalling....", {targetDirectory}))
-	remove_directory(targetDirectory, true)
-end if
-logMsg("installing OpenEuphoria 4.1") 
-if not create_directory(targetDirectory, 0t755) then
-	logMsg(sprintf("Cannot create directory \'%s\'", {targetDirectory}))  	
-	abort(1)
-end if
-if system_exec("tar -xf "&InitialDir&SLASH&"eu41.tgz -C "&targetDirectory,2) then
-	logMsg("unable to run tar")
-	abort(1)
-end if
-fcfg = open(targetDirectory&SLASH&"bin"&SLASH&"eu.cfg", "w")
-if fcfg = -1 then
-	logMsg("configuration file cannot be created.")
-	abort(1)
-end if
-printf(fcfg, eucfgf[2], register_size & {targetDirectory, targetBaseDirectory} & repeat(targetDirectory,5))
-
-create_symlink(targetBaseDirectory & "/euphoria-" & eu41revision, targetBaseDirectory & "/euphoria-4.1")
-
-logMsg("Creating shortcut scripts for 4.1")
-create_directory(prefix & "/bin", 0t755)
-fb = open(prefix & "/bin/eui41", "w")
-if fb = -1 then
-    die("Cannot create %s/bin/euc41",{prefix})
-end if
-puts(fb,
-	"#!/bin/sh\n"&
-	targetBaseDirectory & "/euphoria-4.1/bin/eui $@\n"
-	)
-close(fb)
-
-fb = open(prefix & "/bin/euc41", "w")
-if fb = -1 then
-    die("Cannot create euc41",{})
-end if
-puts(fb,
-	"#!/bin/sh\n"&
-	targetBaseDirectory & "/euphoria-4.1/bin/euc $@\n"
-	)
-close(fb)
-if system_exec("chmod 755 /" & prefix & "/bin/eu[ic]41",2) then
-	die("unable to set execute permission on all shortcuts", {})
-end if
-logMsg("Setting this Euphoria 4.1 version to to be eui41 euc41 etc...")
-create_symlink(targetBaseDirectory & "/euphoria-4.1", targetBaseDirectory & "/euphoria")
-	return false
-end function
 
 --eu41--------------------------------------------------------
 if download_install_41_bundle_fails() then
