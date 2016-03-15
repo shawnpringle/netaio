@@ -21,19 +21,30 @@ include aio.e
 
 constant version_pattern = regex:new("(\\d+\\.)*\\d+")
 constant work_dir = "/tmp/aio"
-enum type boolean true, false=0 end type
-
 constant old_aio_archive_format = "http://rapideuphoria.com/install_aio_linux_%d.tgz"
 constant gtk3_location    = "https://sites.google.com/site/euphoriagtk/EuGTK4.11.5.tar.gz" 
+
+enum type boolean true, false=0 end type
+
+-- return false if the filename contains characters that might cause problems when invoked in a shell
+-- return false if it contains a kind of filesystem separator from another filesystem.  That is, backslash is allowed on Windows but not on Linux.
+-- And forward slash is allowed on Linux but not Windows.
 type proper_filename(sequence s)
 	for i = 1 to length(s) do
-		if find(s[i]," {}[]|><'*?\\\"") then
+		if find(s[i]," {}[]|><'*?\"") then
 			-- bad character
 			return false
+		end if
+		if platform() = WINDOWS and s[i] = '/' then
+		        return false
+		elsif platform() != WINDOWS and s[i] = '\\' then
+		        return false
 		end if
 	end for
 	return true
 end type
+
+
 
 sequence prefix = "/usr/local"
 boolean  dry_run   = false
@@ -492,7 +503,7 @@ function download_install_41_bundle_fails()
 			die("Cannot download needed file : " & aio_archive_format,{register_size})
 	end if
 	
-	targetDirectory = targetBaseDirectory & "/euphoria-" & eu41revision
+	proper_filename targetDirectory = targetBaseDirectory & "/euphoria-" & eu41revision
 	
 	if file_exists(targetDirectory) then
 		logMsg(sprintf("Something already exists at \'%s\'.\nReinstalling....", {targetDirectory}))
@@ -518,7 +529,7 @@ function download_install_41_bundle_fails()
 	
 	logMsg("Creating shortcut scripts for 4.1")
 	create_directory(prefix & "/bin", 0t755)
-	fb = open(prefix & "/bin/eui41", "w")
+	integer fb = open(prefix & "/bin/eui41", "w")
 	if fb = -1 then
 		die("Cannot create %s/bin/euc41",{prefix})
 	end if
@@ -569,6 +580,11 @@ for cmdi = 3 to length(cmd) do
 							next = cmd[cmdi+1]
 							skip_count = true
 						end if
+					end if
+					if not proper_filename(next) then
+					        printf(2, "Not allowed: prefix %s\n", {next})
+					        puts(2, "Should be an alphanumeric path.\n")
+					        abort(1)
 					end if
 					prefix = next
 					exit
@@ -680,10 +696,8 @@ for i = 1 to length(extras) do
 	create_symlink(targetBaseDirectory & "/euphoria-4.1/bin/" & eubin, prefix & "/bin/" & eubin)
 end for
 atom fb, fcfg
-proper_filename targetDirectory, net_archive_name, local_archive_name
+proper_filename net_archive_name, local_archive_name
 proper_filename  archive_version
-
--- Get eu41.tgz
 
 --eu41--------------------------------------------------------
 if download_install_41_bundle_fails() then
